@@ -1,232 +1,458 @@
-import { useState, useEffect, useRef } from 'react'
-import Head from 'next/head'
-import { supabase } from '../lib/supabase'
-import { useRouter } from 'next/router'
+import { useState, useEffect, useRef } from "react";
+import { useRouter } from "next/router";
+import { supabase } from "../lib/supabase";
 
-// ─── Styles ──────────────────────────────────────────────────
-const styles = `
-  @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;0,900;1,400&family=Barlow+Condensed:wght@400;500;600;700&family=Barlow:wght@300;400;500&display=swap');
-  *{box-sizing:border-box;margin:0;padding:0;}
-  :root{--maroon:#7B1A38;--maroon-dark:#5C1229;--maroon-light:#F2E8EC;--off-white:#F7F4EF;--charcoal:#1A1A1A;--mid:#4A4A4A;--gold:#B8943A;--border:rgba(123,26,56,0.12);}
-  body{background:var(--off-white);font-family:'Barlow',sans-serif;font-weight:300;}
+var styles = [
+  "@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;0,900;1,400&family=Barlow+Condensed:wght@400;500;600;700&family=Barlow:wght@300;400;500&display=swap');",
+  "*{box-sizing:border-box;margin:0;padding:0;}",
+  ":root{--maroon:#7B1A38;--maroon-dark:#5C1229;--maroon-light:#F2E8EC;--off-white:#F7F4EF;--charcoal:#1A1A1A;--mid:#4A4A4A;--gold:#B8943A;--border:rgba(123,26,56,0.12);}",
+  "body{background:var(--off-white);font-family:'Barlow',sans-serif;font-weight:300;}",
+  ".dash-layout{display:grid;grid-template-columns:240px 1fr;min-height:100vh;}",
+  ".dash-sidebar{background:var(--charcoal);padding:28px 20px;display:flex;flex-direction:column;position:sticky;top:0;height:100vh;}",
+  ".dash-logo{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:13px;letter-spacing:0.15em;text-transform:uppercase;color:rgba(255,255,255,0.5);margin-bottom:28px;}",
+  ".dash-member-name{font-family:'Playfair Display',serif;font-size:18px;font-weight:700;color:white;margin-bottom:4px;}",
+  ".dash-member-status{font-family:'Barlow Condensed',sans-serif;font-size:11px;font-weight:600;letter-spacing:0.15em;text-transform:uppercase;color:var(--gold);margin-bottom:36px;}",
+  ".dash-nav{flex:1;display:flex;flex-direction:column;gap:2px;}",
+  ".dash-nav-item{display:flex;align-items:center;gap:10px;padding:11px 12px;cursor:pointer;border:none;background:transparent;text-align:left;width:100%;font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;color:rgba(255,255,255,0.5);transition:all 0.15s;}",
+  ".dash-nav-item:hover{color:white;background:rgba(255,255,255,0.06);}",
+  ".dash-nav-item.active{color:white;background:var(--maroon);}",
+  ".dash-signout{font-family:'Barlow Condensed',sans-serif;font-size:11px;font-weight:500;letter-spacing:0.1em;text-transform:uppercase;color:rgba(255,255,255,0.3);border:none;background:transparent;cursor:pointer;padding:8px 0;text-align:left;}",
+  ".dash-signout:hover{color:rgba(255,255,255,0.6);}",
+  ".dash-main{padding:40px;}",
+  ".dash-page-title{font-family:'Playfair Display',serif;font-size:32px;font-weight:900;color:var(--charcoal);margin-bottom:6px;}",
+  ".dash-page-title em{font-style:italic;color:var(--maroon);}",
+  ".dash-page-sub{font-size:14px;font-weight:300;color:var(--mid);margin-bottom:36px;}",
 
-  /* LAYOUT */
-  .dash-layout{display:grid;grid-template-columns:260px 1fr;min-height:100vh;}
+  // Cards
+  ".card-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:14px;margin-bottom:28px;}",
+  ".card{background:white;border:1px solid var(--border);padding:24px;}",
+  ".card-label{font-family:'Barlow Condensed',sans-serif;font-size:11px;font-weight:600;letter-spacing:0.2em;text-transform:uppercase;color:var(--gold);margin-bottom:8px;}",
+  ".card-title{font-family:'Barlow Condensed',sans-serif;font-size:18px;font-weight:700;letter-spacing:0.04em;text-transform:uppercase;color:var(--charcoal);margin-bottom:6px;}",
+  ".card-body{font-size:13px;font-weight:300;color:var(--mid);line-height:1.6;margin-bottom:16px;}",
+  ".card-btn{display:inline-block;background:var(--maroon);color:white;font-family:'Barlow Condensed',sans-serif;font-size:12px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;border:none;cursor:pointer;padding:9px 18px;transition:background 0.2s;}",
+  ".card-btn:hover{background:var(--maroon-dark);}",
+  ".card-btn.ghost{background:transparent;color:var(--maroon);border:1.5px solid var(--maroon);}",
+  ".card-btn.ghost:hover{background:var(--maroon-light);}",
 
-  /* SIDEBAR */
-  .dash-sidebar{background:var(--charcoal);padding:32px 24px;display:flex;flex-direction:column;position:sticky;top:0;height:100vh;}
-  .dash-logo{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:14px;letter-spacing:0.15em;text-transform:uppercase;color:rgba(255,255,255,0.5);margin-bottom:32px;}
-  .dash-member{margin-bottom:40px;}
-  .dash-member-name{font-family:'Playfair Display',serif;font-size:20px;font-weight:700;color:white;margin-bottom:4px;}
-  .dash-member-status{font-family:'Barlow Condensed',sans-serif;font-size:11px;font-weight:600;letter-spacing:0.15em;text-transform:uppercase;color:var(--gold);}
-  .dash-nav{flex:1;display:flex;flex-direction:column;gap:2px;}
-  .dash-nav-item{display:flex;align-items:center;gap:12px;padding:12px 14px;cursor:pointer;border:none;background:transparent;text-align:left;width:100%;font-family:'Barlow Condensed',sans-serif;font-size:14px;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;color:rgba(255,255,255,0.5);transition:all 0.15s;border-radius:0;}
-  .dash-nav-item:hover{color:white;background:rgba(255,255,255,0.06);}
-  .dash-nav-item.active{color:white;background:var(--maroon);}
-  .dash-nav-icon{font-size:16px;min-width:20px;}
-  .dash-signout{font-family:'Barlow Condensed',sans-serif;font-size:12px;font-weight:500;letter-spacing:0.1em;text-transform:uppercase;color:rgba(255,255,255,0.3);border:none;background:transparent;cursor:pointer;padding:8px 0;text-align:left;}
-  .dash-signout:hover{color:rgba(255,255,255,0.6);}
+  // Program view
+  ".program-header{background:var(--maroon);color:white;padding:20px 24px;display:flex;justify-content:space-between;align-items:center;margin-bottom:2px;}",
+  ".program-header-title{font-family:'Barlow Condensed',sans-serif;font-size:18px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;}",
+  ".program-header-sub{font-size:12px;font-weight:300;color:rgba(255,255,255,0.6);margin-top:2px;}",
+  ".week-tabs{display:flex;gap:2px;background:var(--border);padding:2px;margin-bottom:20px;}",
+  ".week-tab{flex:1;padding:10px;font-family:'Barlow Condensed',sans-serif;font-size:12px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;border:none;background:transparent;cursor:pointer;color:var(--mid);transition:all 0.15s;}",
+  ".week-tab.active{background:white;color:var(--maroon);}",
+  ".day-block{background:white;border:1px solid var(--border);margin-bottom:12px;}",
+  ".day-header{padding:16px 20px;display:flex;justify-content:space-between;align-items:center;cursor:pointer;border-bottom:1px solid var(--border);}",
+  ".day-header-left{display:flex;align-items:center;gap:12px;}",
+  ".day-label{font-family:'Barlow Condensed',sans-serif;font-size:15px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:var(--charcoal);}",
+  ".day-type{font-family:'Barlow Condensed',sans-serif;font-size:11px;font-weight:600;letter-spacing:0.12em;text-transform:uppercase;background:var(--maroon-light);color:var(--maroon);padding:3px 8px;}",
+  ".day-toggle{font-size:18px;color:var(--mid);transition:transform 0.2s;}",
+  ".day-toggle.open{transform:rotate(45deg);}",
+  ".day-completed{width:20px;height:20px;border-radius:50%;background:var(--maroon);display:flex;align-items:center;justify-content:center;font-size:10px;color:white;}",
 
-  /* MAIN */
-  .dash-main{padding:48px;}
-  .dash-page-title{font-family:'Playfair Display',serif;font-size:36px;font-weight:900;color:var(--charcoal);margin-bottom:6px;}
-  .dash-page-title em{font-style:italic;color:var(--maroon);}
-  .dash-page-sub{font-size:15px;font-weight:300;color:var(--mid);margin-bottom:40px;}
+  // Exercise rows
+  ".exercises-table{width:100%;}",
+  ".exercise-header-row{display:grid;grid-template-columns:1fr 70px 70px 70px 70px 80px 32px;gap:8px;padding:10px 20px;background:var(--off-white);border-bottom:1px solid var(--border);}",
+  ".exercise-col-label{font-family:'Barlow Condensed',sans-serif;font-size:10px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:var(--mid);}",
+  ".exercise-row{display:grid;grid-template-columns:1fr 70px 70px 70px 70px 80px 32px;gap:8px;padding:12px 20px;border-bottom:1px solid var(--border);align-items:center;}",
+  ".exercise-row:last-child{border-bottom:none;}",
+  ".exercise-row.logged{background:rgba(123,26,56,0.03);}",
+  ".exercise-name{font-size:14px;font-weight:400;color:var(--charcoal);}",
+  ".exercise-target{font-size:12px;font-weight:300;color:var(--mid);margin-top:2px;}",
+  ".log-input{width:100%;border:1px solid var(--border);padding:6px 8px;font-family:'Barlow',sans-serif;font-size:13px;font-weight:300;color:var(--charcoal);outline:none;background:white;text-align:center;}",
+  ".log-input:focus{border-color:var(--maroon);}",
+  ".log-input.filled{background:var(--maroon-light);border-color:rgba(123,26,56,0.3);}",
+  ".log-btn{width:28px;height:28px;background:var(--maroon);border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;color:white;font-size:14px;transition:background 0.15s;}",
+  ".log-btn:hover{background:var(--maroon-dark);}",
+  ".log-btn.saved{background:#27AE60;}",
+  ".notes-row{padding:8px 20px 12px;border-bottom:1px solid var(--border);}",
+  ".notes-input{width:100%;border:1px solid var(--border);padding:7px 10px;font-family:'Barlow',sans-serif;font-size:12px;font-weight:300;color:var(--mid);outline:none;resize:none;min-height:36px;}",
+  ".notes-input:focus{border-color:var(--maroon);}",
+  ".progression-tip{padding:10px 20px;background:rgba(184,148,58,0.08);border-bottom:1px solid var(--border);display:flex;gap:10px;align-items:flex-start;}",
+  ".progression-tip-icon{font-size:14px;margin-top:1px;}",
+  ".progression-tip-text{font-size:12px;font-weight:300;color:var(--mid);line-height:1.5;}",
+  ".progression-tip-text strong{font-weight:600;color:var(--charcoal);}",
 
-  /* CARDS */
-  .card-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:16px;margin-bottom:32px;}
-  .card{background:white;border:1px solid var(--border);padding:28px;}
-  .card-label{font-family:'Barlow Condensed',sans-serif;font-size:11px;font-weight:600;letter-spacing:0.2em;text-transform:uppercase;color:var(--gold);margin-bottom:10px;}
-  .card-title{font-family:'Barlow Condensed',sans-serif;font-size:20px;font-weight:700;letter-spacing:0.04em;text-transform:uppercase;color:var(--charcoal);margin-bottom:8px;}
-  .card-body{font-size:14px;font-weight:300;color:var(--mid);line-height:1.6;margin-bottom:20px;}
-  .card-btn{display:inline-block;background:var(--maroon);color:white;font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;border:none;cursor:pointer;padding:10px 22px;transition:background 0.2s;}
-  .card-btn:hover{background:var(--maroon-dark);}
-  .card-btn.ghost{background:transparent;color:var(--maroon);border:1.5px solid var(--maroon);}
-  .card-btn.ghost:hover{background:var(--maroon-light);}
+  // Chat
+  ".chat-embed{background:white;border:1px solid var(--border);display:flex;flex-direction:column;height:580px;}",
+  ".chat-embed-header{padding:18px 22px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px;}",
+  ".chat-mark{width:34px;height:34px;background:var(--maroon);display:flex;align-items:center;justify-content:center;font-family:'Playfair Display',serif;font-size:15px;font-weight:900;color:white;}",
+  ".chat-embed-title{font-family:'Barlow Condensed',sans-serif;font-size:15px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:var(--charcoal);}",
+  ".chat-embed-sub{font-size:11px;font-weight:300;color:var(--mid);}",
+  ".chat-messages{flex:1;overflow-y:auto;padding:18px;display:flex;flex-direction:column;gap:14px;}",
+  ".chat-msg{display:flex;gap:8px;}",
+  ".chat-msg.user{flex-direction:row-reverse;}",
+  ".chat-avatar{width:26px;height:26px;min-width:26px;background:var(--maroon);display:flex;align-items:center;justify-content:center;font-family:'Playfair Display',serif;font-size:11px;font-weight:900;color:white;margin-top:2px;}",
+  ".chat-avatar.user{background:var(--charcoal);}",
+  ".chat-bubble{max-width:calc(100% - 40px);padding:11px 14px;font-size:13px;font-weight:300;line-height:1.7;color:var(--charcoal);background:var(--off-white);border:1px solid var(--border);}",
+  ".chat-msg.user .chat-bubble{background:var(--maroon);color:white;border-color:var(--maroon);}",
+  ".chat-suggestions-wrap{display:flex;flex-wrap:wrap;gap:6px;padding:0 18px 12px;}",
+  ".chat-suggestion{font-size:11px;font-weight:300;color:var(--mid);background:var(--off-white);border:1px solid var(--border);padding:5px 10px;cursor:pointer;transition:all 0.15s;}",
+  ".chat-suggestion:hover{border-color:var(--maroon);color:var(--charcoal);}",
+  ".typing{display:flex;gap:4px;align-items:center;padding:11px 14px;}",
+  ".typing-dot{width:6px;height:6px;background:var(--maroon);border-radius:50%;opacity:0.4;animation:tp 1.2s infinite;}",
+  ".typing-dot:nth-child(2){animation-delay:0.2s;}",
+  ".typing-dot:nth-child(3){animation-delay:0.4s;}",
+  "@keyframes tp{0%,100%{opacity:0.4;transform:scale(1);}50%{opacity:1;transform:scale(1.3);}}",
+  ".chat-input-row{padding:14px;border-top:1px solid var(--border);display:flex;gap:8px;}",
+  ".chat-input{flex:1;border:1.5px solid var(--border);padding:9px 12px;font-family:'Barlow',sans-serif;font-size:13px;font-weight:300;outline:none;resize:none;height:40px;}",
+  ".chat-input:focus{border-color:var(--maroon);}",
+  ".chat-send{width:40px;height:40px;background:var(--maroon);border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background 0.2s;}",
+  ".chat-send:hover{background:var(--maroon-dark);}",
+  ".chat-send:disabled{opacity:0.4;cursor:not-allowed;}",
 
-  /* PROGRAM STATUS */
-  .program-status{display:flex;align-items:center;gap:10px;margin-bottom:32px;padding:20px 24px;background:white;border:1px solid var(--border);}
-  .status-indicator{width:10px;height:10px;border-radius:50%;min-width:10px;}
-  .status-indicator.ready{background:#2ECC71;}
-  .status-indicator.generating{background:var(--gold);animation:pulse 1.5s infinite;}
-  .status-indicator.none{background:rgba(0,0,0,0.15);}
-  @keyframes pulse{0%,100%{opacity:1;}50%{opacity:0.3;}}
-  .status-text{font-family:'Barlow Condensed',sans-serif;font-size:14px;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;color:var(--charcoal);}
-  .status-sub{font-size:13px;font-weight:300;color:var(--mid);margin-left:auto;}
+  // Nutrition
+  ".macro-bar{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:20px;}",
+  ".macro-item{background:white;border:1px solid var(--border);padding:18px;text-align:center;}",
+  ".macro-num{font-family:'Playfair Display',serif;font-size:28px;font-weight:900;color:var(--maroon);}",
+  ".macro-label{font-family:'Barlow Condensed',sans-serif;font-size:10px;font-weight:600;letter-spacing:0.15em;text-transform:uppercase;color:var(--mid);margin-top:4px;}",
+  ".meal-card{background:white;border:1px solid var(--border);padding:18px;margin-bottom:10px;}",
+  ".meal-name{font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:var(--charcoal);margin-bottom:5px;}",
+  ".meal-desc{font-size:13px;font-weight:300;color:var(--mid);margin-bottom:8px;line-height:1.5;}",
+  ".meal-macros{display:flex;gap:14px;}",
+  ".meal-macro{font-family:'Barlow Condensed',sans-serif;font-size:12px;color:var(--mid);}",
+  ".meal-macro strong{color:var(--charcoal);font-weight:700;}",
 
-  /* PROGRAM DETAIL */
-  .program-detail{background:white;border:1px solid var(--border);padding:32px;margin-bottom:24px;}
-  .program-week{margin-bottom:32px;}
-  .program-week-title{font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:700;letter-spacing:0.15em;text-transform:uppercase;color:var(--gold);margin-bottom:16px;}
-  .program-day{margin-bottom:20px;padding:20px;border:1px solid var(--border);}
-  .program-day-header{font-family:'Barlow Condensed',sans-serif;font-size:16px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:var(--maroon);margin-bottom:14px;}
-  .exercise-row{display:grid;grid-template-columns:1fr auto auto auto;gap:12px;align-items:start;padding:10px 0;border-bottom:1px solid rgba(123,26,56,0.08);}
-  .exercise-row:last-child{border-bottom:none;}
-  .exercise-name{font-size:14px;font-weight:500;color:var(--charcoal);}
-  .exercise-note{font-size:12px;font-weight:300;color:var(--mid);margin-top:3px;font-style:italic;}
-  .exercise-stat{font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:600;color:var(--charcoal);text-align:center;}
-  .exercise-stat-label{font-size:10px;font-weight:300;color:var(--mid);text-transform:uppercase;letter-spacing:0.08em;}
+  ".loading-screen{display:flex;align-items:center;justify-content:center;min-height:100vh;font-family:'Barlow Condensed',sans-serif;font-size:14px;letter-spacing:0.1em;text-transform:uppercase;color:var(--mid);}",
+  "@media(max-width:900px){.dash-layout{grid-template-columns:1fr;}.dash-sidebar{position:static;height:auto;}.dash-main{padding:24px;}.card-grid{grid-template-columns:1fr;}.macro-bar{grid-template-columns:repeat(2,1fr);}.exercise-header-row,.exercise-row{grid-template-columns:1fr 60px 60px 60px 60px 70px 28px;}}"
+].join(" ");
 
-  /* NUTRITION */
-  .macro-bar{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:28px;}
-  .macro-item{background:white;border:1px solid var(--border);padding:20px;text-align:center;}
-  .macro-num{font-family:'Playfair Display',serif;font-size:32px;font-weight:900;color:var(--maroon);}
-  .macro-label{font-family:'Barlow Condensed',sans-serif;font-size:11px;font-weight:600;letter-spacing:0.15em;text-transform:uppercase;color:var(--mid);margin-top:4px;}
-  .meal-card{background:white;border:1px solid var(--border);padding:20px;margin-bottom:12px;}
-  .meal-name{font-family:'Barlow Condensed',sans-serif;font-size:14px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:var(--charcoal);margin-bottom:6px;}
-  .meal-desc{font-size:14px;font-weight:300;color:var(--mid);margin-bottom:10px;line-height:1.5;}
-  .meal-macros{display:flex;gap:16px;}
-  .meal-macro{font-family:'Barlow Condensed',sans-serif;font-size:13px;color:var(--mid);}
-  .meal-macro strong{color:var(--charcoal);font-weight:700;}
-
-  /* CHAT embedded */
-  .chat-embed{background:white;border:1px solid var(--border);display:flex;flex-direction:column;height:600px;}
-  .chat-embed-header{padding:20px 24px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px;}
-  .chat-mark{width:36px;height:36px;background:var(--maroon);display:flex;align-items:center;justify-content:center;font-family:'Playfair Display',serif;font-size:16px;font-weight:900;color:white;}
-  .chat-embed-title{font-family:'Barlow Condensed',sans-serif;font-size:16px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:var(--charcoal);}
-  .chat-embed-sub{font-size:12px;font-weight:300;color:var(--mid);}
-  .chat-messages{flex:1;overflow-y:auto;padding:20px;display:flex;flex-direction:column;gap:16px;}
-  .chat-msg{display:flex;gap:10px;max-width:100%;}
-  .chat-msg.user{flex-direction:row-reverse;}
-  .chat-avatar{width:28px;height:28px;min-width:28px;background:var(--maroon);display:flex;align-items:center;justify-content:center;font-family:'Playfair Display',serif;font-size:12px;font-weight:900;color:white;margin-top:2px;}
-  .chat-avatar.user{background:var(--charcoal);}
-  .chat-bubble{max-width:calc(100% - 44px);padding:12px 16px;font-size:14px;font-weight:300;line-height:1.7;color:var(--charcoal);background:var(--off-white);border:1px solid var(--border);}
-  .chat-msg.user .chat-bubble{background:var(--maroon);color:white;border-color:var(--maroon);}
-  .chat-input-row{padding:16px;border-top:1px solid var(--border);display:flex;gap:8px;}
-  .chat-input{flex:1;border:1.5px solid var(--border);padding:10px 14px;font-family:'Barlow',sans-serif;font-size:14px;font-weight:300;outline:none;resize:none;height:44px;}
-  .chat-input:focus{border-color:var(--maroon);}
-  .chat-send{width:44px;height:44px;background:var(--maroon);border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background 0.2s;}
-  .chat-send:hover{background:var(--maroon-dark);}
-  .chat-send:disabled{opacity:0.4;cursor:not-allowed;}
-  .chat-suggestions{display:flex;flex-wrap:wrap;gap:8px;padding:0 20px 16px;}
-  .chat-suggestion{font-family:'Barlow',sans-serif;font-size:12px;font-weight:300;color:var(--mid);background:var(--off-white);border:1px solid var(--border);padding:6px 12px;cursor:pointer;transition:all 0.15s;}
-  .chat-suggestion:hover{border-color:var(--maroon);color:var(--charcoal);}
-  .typing{display:flex;gap:4px;align-items:center;padding:12px 16px;}
-  .typing-dot{width:6px;height:6px;background:var(--maroon);border-radius:50%;opacity:0.4;animation:typingPulse 1.2s infinite;}
-  .typing-dot:nth-child(2){animation-delay:0.2s;}
-  .typing-dot:nth-child(3){animation-delay:0.4s;}
-  @keyframes typingPulse{0%,100%{opacity:0.4;transform:scale(1);}50%{opacity:1;transform:scale(1.3);}}
-
-  .loading-screen{display:flex;align-items:center;justify-content:center;min-height:100vh;font-family:'Barlow Condensed',sans-serif;font-size:16px;letter-spacing:0.1em;text-transform:uppercase;color:var(--mid);}
-
-  @media(max-width:900px){
-    .dash-layout{grid-template-columns:1fr;}
-    .dash-sidebar{position:static;height:auto;}
-    .dash-main{padding:24px;}
-    .card-grid{grid-template-columns:1fr;}
-    .macro-bar{grid-template-columns:repeat(2,1fr);}
-  }
-`
-
-const CHAT_SUGGESTIONS = [
-  "What replaces overhead press if my shoulder hurts?",
-  "I only have 30 min today — shorten my workout",
+var CHAT_SUGGESTIONS = [
+  "My shoulder hurts — what replaces overhead press?",
+  "I only have 30 min today, shorten my workout",
   "What should I eat before training?",
-  "My sleep has been bad — what's the priority fix?",
-]
+  "I slept badly — should I still train heavy?",
+];
 
-const NAV = [
-  { id: 'overview', icon: '◈', label: 'Overview' },
-  { id: 'training', icon: '⚡', label: 'Training' },
-  { id: 'nutrition', icon: '🥩', label: 'Nutrition' },
-  { id: 'chat', icon: 'R', label: 'The Regimen' },
-  { id: 'profile', icon: '◎', label: 'My Profile' },
-]
+var NAV = [
+  { id: "overview", icon: "◈", label: "Overview" },
+  { id: "training", icon: "⚡", label: "Training" },
+  { id: "nutrition", icon: "🥩", label: "Nutrition" },
+  { id: "chat", icon: "R", label: "The Regimen" },
+  { id: "profile", icon: "◎", label: "Profile" },
+];
+
+// Demo program structure for rendering
+var DEMO_PROGRAM = {
+  program_name: "Hypertrophy Block 1",
+  program_type: "hypertrophy",
+  block_number: 1,
+  training_program: {
+    split: "Upper / Lower",
+    blocks: [{
+      block: 1,
+      weeks: "1-4",
+      days: [
+        {
+          day: "Day 1",
+          focus: "Upper Body A",
+          type: "Hypertrophy",
+          exercises: [
+            { name: "Seated Overhead Press", sets: 3, reps: "10", rir_week1: "3-4", rest: "3m", note: "2 warm-up sets before working sets" },
+            { name: "DB Incline Bench Row", sets: 4, reps: "12", rir_week1: "3-4", rest: "3m", note: "Squeeze at top for 2 count" },
+            { name: "DB Chest Press", sets: 3, reps: "15", rir_week1: "3-4", rest: "2m", note: "Control throughout, MMC" },
+            { name: "Close Grip Pulldown", sets: 3, reps: "20", rir_week1: "3-4", rest: "2m", note: "" },
+            { name: "Barbell Shrug", sets: 3, reps: "15", rir_week1: "2-3", rest: "2m", note: "" },
+            { name: "Skull Crushers", sets: 3, reps: "15", rir_week1: "2-3", rest: "2m", note: "" },
+            { name: "Preacher Curls", sets: 3, reps: "20", rir_week1: "2-3", rest: "2m", note: "" },
+          ]
+        },
+        {
+          day: "Day 2",
+          focus: "Lower Body A",
+          type: "Hypertrophy",
+          exercises: [
+            { name: "Barbell Front Squat", sets: 3, reps: "12", rir_week1: "3-4", rest: "3m", note: "2 warm-up sets before working sets" },
+            { name: "Barbell RDL", sets: 4, reps: "12", rir_week1: "3-4", rest: "3m", note: "Slight bend in knee, flat back" },
+            { name: "Barbell Step Up", sets: 3, reps: "10 ea", rir_week1: "3-4", rest: "3m", note: "90 degree bend at knee minimum" },
+            { name: "Barbell Hip Thrust", sets: 3, reps: "15", rir_week1: "3-4", rest: "3m", note: "Tuck chin, squeeze glutes, do not arch back" },
+            { name: "DB Calf Raise", sets: 3, reps: "15", rir_week1: "3-4", rest: "2m", note: "" },
+            { name: "Bodyweight Tibialis Raise", sets: 3, reps: "10", rir_week1: "2-3", rest: "2m", note: "Knee health — do not skip" },
+          ]
+        },
+        {
+          day: "Day 3",
+          focus: "Aerobic Capacity",
+          type: "Cardio",
+          exercises: [
+            { name: "Incline Treadmill Walk", sets: 1, reps: "30 min", rir_week1: "--", rest: "--", note: "Just barely able to hold a conversation. 3-4 MPH, 6-15 degrees incline" },
+          ]
+        },
+        {
+          day: "Day 4",
+          focus: "Upper Body B",
+          type: "Hypertrophy",
+          exercises: [
+            { name: "Barbell Bench Press", sets: 3, reps: "12", rir_week1: "3-4", rest: "3m", note: "2 warm-up sets before working sets" },
+            { name: "Pull Ups", sets: 3, reps: "8-12", rir_week1: "3-4", rest: "3m", note: "Use assistance if needed" },
+            { name: "DB Incline Chest Press", sets: 3, reps: "12", rir_week1: "3-4", rest: "3m", note: "" },
+            { name: "Single-Arm Rows", sets: 3, reps: "12 ea", rir_week1: "3-4", rest: "3m", note: "" },
+            { name: "Cable Face Pull", sets: 3, reps: "20", rir_week1: "2-3", rest: "2m", note: "" },
+            { name: "Cable OH Tricep Extension", sets: 3, reps: "20", rir_week1: "2-3", rest: "2m", note: "" },
+            { name: "DB Incline Bicep Curls", sets: 3, reps: "20", rir_week1: "2-3", rest: "2m", note: "" },
+          ]
+        },
+        {
+          day: "Day 5",
+          focus: "Lower Body B",
+          type: "Hypertrophy",
+          exercises: [
+            { name: "Bulgarian Split Squat", sets: 3, reps: "10 ea", rir_week1: "3-4", rest: "3m", note: "" },
+            { name: "Deadlift", sets: 4, reps: "8", rir_week1: "3-4", rest: "3m", note: "" },
+            { name: "Hip Thrust", sets: 3, reps: "15", rir_week1: "3-4", rest: "3m", note: "Tuck chin, squeeze glutes, do not arch back" },
+            { name: "Nordic Curl", sets: 3, reps: "6-8", rir_week1: "3-4", rest: "3m", note: "" },
+            { name: "Goblet Squat", sets: 3, reps: "15", rir_week1: "3-4", rest: "2m", note: "" },
+            { name: "Banded Tibia Flexion", sets: 3, reps: "10", rir_week1: "2-3", rest: "2m", note: "Knee health — do not skip" },
+          ]
+        },
+      ]
+    }]
+  }
+};
+
+function LogInput(props) {
+  var placeholder = props.placeholder;
+  var value = props.value;
+  var onChange = props.onChange;
+  var type = props.type;
+  return (
+    <input
+      type={type || "number"}
+      className={value ? "log-input filled" : "log-input"}
+      placeholder={placeholder}
+      value={value}
+      onChange={function(e) { onChange(e.target.value); }}
+      min="0"
+    />
+  );
+}
 
 export default function Dashboard() {
-  const router = useRouter()
-  const [activeTab, setActiveTab] = useState('overview')
-  const [user, setUser] = useState(null)
-  const [profile, setProfile] = useState(null)
-  const [program, setProgram] = useState(null)
-  const [intake, setIntake] = useState(null)
-  const [loading, setLoading] = useState(true)
+  var router = useRouter();
+  var tabState = useState("overview");
+  var activeTab = tabState[0];
+  var setActiveTab = tabState[1];
 
-  // Chat state
-  const [chatMessages, setChatMessages] = useState([])
-  const [chatInput, setChatInput] = useState('')
-  const [chatLoading, setChatLoading] = useState(false)
-  const chatEndRef = useRef(null)
+  var userState = useState(null);
+  var user = userState[0];
+  var setUser = userState[1];
 
-  useEffect(() => {
+  var profileState = useState(null);
+  var profile = profileState[0];
+  var setProfile = profileState[1];
+
+  var programState = useState(null);
+  var program = programState[0];
+  var setProgram = programState[1];
+
+  var loadingState = useState(true);
+  var loading = loadingState[0];
+  var setLoading = loadingState[1];
+
+  var weekState = useState(1);
+  var currentWeek = weekState[0];
+  var setCurrentWeek = weekState[1];
+
+  var openDayState = useState(0);
+  var openDay = openDayState[0];
+  var setOpenDay = openDayState[1];
+
+  // Logs: { "Day1-ExerciseName-setIndex": { weight, reps, rir, notes, saved, suggestion } }
+  var logsState = useState({});
+  var logs = logsState[0];
+  var setLogs = logsState[1];
+
+  var chatMessagesState = useState([]);
+  var chatMessages = chatMessagesState[0];
+  var setChatMessages = chatMessagesState[1];
+
+  var chatInputState = useState("");
+  var chatInput = chatInputState[0];
+  var setChatInput = chatInputState[1];
+
+  var chatLoadingState = useState(false);
+  var chatLoading = chatLoadingState[0];
+  var setChatLoading = chatLoadingState[1];
+
+  var chatEndRef = useRef(null);
+
+  useEffect(function() {
     async function loadData() {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) { router.push('/join'); return }
-      setUser(user)
-
-      const [profileRes, intakeRes, programRes] = await Promise.all([
-        supabase.from('profiles').select('*').eq('id', user.id).single(),
-        supabase.from('intake_submissions').select('*').eq('user_id', user.id).single(),
-        supabase.from('generated_programs').select('*').eq('user_id', user.id).order('generated_at', { ascending: false }).limit(1).single()
-      ])
-
-      setProfile(profileRes.data)
-      setIntake(intakeRes.data)
-      setProgram(programRes.data)
-      setLoading(false)
-
-      // If no intake, redirect
-      if (!intakeRes.data) { router.push('/intake') }
+      var authResult = await supabase.auth.getUser();
+      var u = authResult.data.user;
+      // For testing without auth, use demo data
+      if (!u) {
+        setProfile({ first_name: "Athlete" });
+        setProgram(DEMO_PROGRAM);
+        setLoading(false);
+        return;
+      }
+      setUser(u);
+      var profileResult = await supabase.from("profiles").select("*").eq("id", u.id).single();
+      setProfile(profileResult.data || { first_name: "Athlete" });
+      var programResult = await supabase.from("generated_programs").select("*").eq("user_id", u.id).order("generated_at", { ascending: false }).limit(1).single();
+      setProgram(programResult.data || DEMO_PROGRAM);
+      setLoading(false);
     }
-    loadData()
-  }, [])
+    loadData();
+  }, []);
 
-  useEffect(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [chatMessages, chatLoading])
+  useEffect(function() {
+    if (chatEndRef.current) chatEndRef.current.scrollIntoView({ behavior: "smooth" });
+  }, [chatMessages, chatLoading]);
 
-  async function sendChat(text) {
-    const msg = text || chatInput.trim()
-    if (!msg || chatLoading) return
-    setChatInput('')
-    const newMessages = [...chatMessages, { role: 'user', content: msg }]
-    setChatMessages(newMessages)
-    setChatLoading(true)
+  function getLogKey(dayLabel, exerciseName, setIndex) {
+    return dayLabel + "--" + exerciseName + "--" + setIndex;
+  }
+
+  function updateLog(dayLabel, exerciseName, setIndex, field, value) {
+    var key = getLogKey(dayLabel, exerciseName, setIndex);
+    setLogs(function(prev) {
+      var next = {};
+      for (var k in prev) next[k] = prev[k];
+      var existing = prev[key] || {};
+      var updated = {};
+      for (var f in existing) updated[f] = existing[f];
+      updated[field] = value;
+      next[key] = updated;
+      return next;
+    });
+  }
+
+  async function saveLog(dayLabel, exerciseName, setIndex, setNum) {
+    var key = getLogKey(dayLabel, exerciseName, setIndex);
+    var logData = logs[key] || {};
+
+    // Mark as saving
+    setLogs(function(prev) {
+      var next = {};
+      for (var k in prev) next[k] = prev[k];
+      var existing = prev[key] || {};
+      var updated = {};
+      for (var f in existing) updated[f] = existing[f];
+      updated.saving = true;
+      next[key] = updated;
+      return next;
+    });
 
     try {
-      const res = await fetch('/api/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: newMessages, memberId: user?.id })
-      })
-      const data = await res.json()
-      setChatMessages(prev => [...prev, { role: 'assistant', content: data.reply }])
-    } catch {
-      setChatMessages(prev => [...prev, { role: 'assistant', content: 'Something went wrong. Please try again.' }])
-    } finally { setChatLoading(false) }
+      var res = await fetch("/api/workout-log", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId: user ? user.id : null,
+          exerciseName: exerciseName,
+          setNumber: setNum,
+          weightLbs: logData.weight || null,
+          reps: logData.reps || null,
+          rir: logData.rir || null,
+          notes: logData.notes || null,
+          programId: program ? program.id : null,
+          blockNumber: program ? program.block_number : 1,
+          weekNumber: currentWeek,
+          dayLabel: dayLabel,
+        })
+      });
+      var data = await res.json();
+
+      setLogs(function(prev) {
+        var next = {};
+        for (var k in prev) next[k] = prev[k];
+        var existing = prev[key] || {};
+        var updated = {};
+        for (var f in existing) updated[f] = existing[f];
+        updated.saved = true;
+        updated.saving = false;
+        if (data.suggestion) updated.suggestion = data.suggestion;
+        next[key] = updated;
+        return next;
+      });
+    } catch (err) {
+      setLogs(function(prev) {
+        var next = {};
+        for (var k in prev) next[k] = prev[k];
+        var existing = prev[key] || {};
+        var updated = {};
+        for (var f in existing) updated[f] = existing[f];
+        updated.saving = false;
+        next[key] = updated;
+        return next;
+      });
+    }
+  }
+
+  function isDayComplete(day) {
+    if (!day.exercises) return false;
+    var count = 0;
+    day.exercises.forEach(function(ex, ei) {
+      for (var s = 0; s < ex.sets; s++) {
+        var key = getLogKey(day.day, ex.name, s);
+        if (logs[key] && logs[key].saved) count++;
+      }
+    });
+    var total = day.exercises.reduce(function(acc, ex) { return acc + ex.sets; }, 0);
+    return total > 0 && count >= total;
+  }
+
+  async function sendChat(text) {
+    var msg = text || chatInput.trim();
+    if (!msg || chatLoading) return;
+    setChatInput("");
+    var newMessages = chatMessages.concat([{ role: "user", content: msg }]);
+    setChatMessages(newMessages);
+    setChatLoading(true);
+    try {
+      var res = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ messages: newMessages, memberId: user ? user.id : null })
+      });
+      var data = await res.json();
+      setChatMessages(function(prev) { return prev.concat([{ role: "assistant", content: data.reply || "Something went wrong. Please try again." }]); });
+    } catch (err) {
+      setChatMessages(function(prev) { return prev.concat([{ role: "assistant", content: "Something went wrong. Please try again." }]); });
+    } finally {
+      setChatLoading(false);
+    }
   }
 
   async function signOut() {
-    await supabase.auth.signOut()
-    router.push('/')
+    await supabase.auth.signOut();
+    router.push("/");
   }
 
-  if (loading) return <><style>{styles}</style><div className="loading-screen">Loading your Regimen...</div></>
+  if (loading) {
+    return (
+      <div>
+        <style>{styles}</style>
+        <div className="loading-screen">Loading your Regimen...</div>
+      </div>
+    );
+  }
 
-  const nutrition = program?.meal_plan
-  const training = program?.training_program
-  const firstName = profile?.first_name || user?.email?.split('@')[0] || 'Athlete'
+  var firstName = (profile && profile.first_name) ? profile.first_name : "Athlete";
+  var trainingData = (program && program.training_program) ? program.training_program : DEMO_PROGRAM.training_program;
+  var block = trainingData.blocks ? trainingData.blocks[0] : null;
 
   return (
-    <>
-      <Head><title>Dashboard — Rallis Regimen</title></Head>
+    <div>
       <style>{styles}</style>
-
       <div className="dash-layout">
+
         {/* SIDEBAR */}
         <div className="dash-sidebar">
           <div className="dash-logo">Rallis Regimen</div>
-          <div className="dash-member">
-            <div className="dash-member-name">{firstName}</div>
-            <div className="dash-member-status">● Active Member</div>
-          </div>
+          <div className="dash-member-name">{firstName}</div>
+          <div className="dash-member-status">Active Member</div>
           <nav className="dash-nav">
-            {NAV.map(n => (
-              <button key={n.id} className={`dash-nav-item ${activeTab === n.id ? 'active' : ''}`} onClick={() => setActiveTab(n.id)}>
-                <span className="dash-nav-icon">{n.icon}</span>
-                {n.label}
-              </button>
-            ))}
+            {NAV.map(function(n) {
+              return (
+                <button key={n.id} className={activeTab === n.id ? "dash-nav-item active" : "dash-nav-item"} onClick={function() { setActiveTab(n.id); }}>
+                  <span style={{ minWidth: 16 }}>{n.icon}</span>
+                  {n.label}
+                </button>
+              );
+            })}
           </nav>
           <button className="dash-signout" onClick={signOut}>Sign out</button>
         </div>
@@ -235,124 +461,189 @@ export default function Dashboard() {
         <div className="dash-main">
 
           {/* OVERVIEW */}
-          {activeTab === 'overview' && (
-            <>
+          {activeTab === "overview" && (
+            <div>
               <div className="dash-page-title">Your <em>Regimen.</em></div>
-              <div className="dash-page-sub">Welcome back, {firstName}. Here's everything in one place.</div>
-
-              <div className="program-status">
-                <div className={`status-indicator ${program?.status || 'none'}`} />
-                <div className="status-text">
-                  {program?.status === 'ready' ? `Program Ready — ${program.program_name}` :
-                   program?.status === 'generating' ? 'Generating your program...' :
-                   'No program yet — complete your intake form'}
-                </div>
-                <div className="status-sub">Block {program?.block_number || '—'} of 3</div>
-              </div>
-
+              <div className="dash-page-sub">Welcome back, {firstName}.</div>
               <div className="card-grid">
                 <div className="card">
                   <div className="card-label">Training</div>
-                  <div className="card-title">{training?.split || 'Your Program'}</div>
-                  <div className="card-body">
-                    {program?.status === 'ready'
-                      ? `${intake?.training_days_per_week} days/week · Block ${program.block_number} of 3 · Weeks ${(program.block_number - 1) * 4 + 1}–${program.block_number * 4}`
-                      : 'Complete your intake form to generate your training program.'}
-                  </div>
-                  <button className="card-btn" onClick={() => setActiveTab('training')}>View Program</button>
+                  <div className="card-title">{(program && program.program_name) ? program.program_name : "Hypertrophy Block 1"}</div>
+                  <div className="card-body">Block {(program && program.block_number) ? program.block_number : 1} of 3. Log your sets inline as you train and get automatic progression suggestions each week.</div>
+                  <button className="card-btn" onClick={function() { setActiveTab("training"); }}>Open Program</button>
                 </div>
-
                 <div className="card">
                   <div className="card-label">Nutrition</div>
-                  <div className="card-title">{nutrition?.daily_calories ? `${nutrition.daily_calories} cal/day` : 'Meal Plan'}</div>
-                  <div className="card-body">
-                    {nutrition
-                      ? `${nutrition.protein_g}g protein · ${nutrition.carbs_g_training}g carbs (training) · ${nutrition.fat_g}g fat`
-                      : 'Your personalized meal plan will appear here once your program is generated.'}
-                  </div>
-                  <button className="card-btn" onClick={() => setActiveTab('nutrition')}>View Nutrition</button>
+                  <div className="card-title">Meal Plan</div>
+                  <div className="card-body">Your personalized nutrition plan built around your training schedule and body composition goal.</div>
+                  <button className="card-btn" onClick={function() { setActiveTab("nutrition"); }}>View Nutrition</button>
                 </div>
-
                 <div className="card">
                   <div className="card-label">The Regimen</div>
                   <div className="card-title">Ask anything</div>
-                  <div className="card-body">Your AI coaching layer is ready. Ask about exercise substitutions, nutrition, sleep, recovery — anything about your program.</div>
-                  <button className="card-btn" onClick={() => setActiveTab('chat')}>Open Chat</button>
+                  <div className="card-body">Swap exercises, adjust for sleep, get restaurant macro help, or ask about your program. Available 24/7.</div>
+                  <button className="card-btn" onClick={function() { setActiveTab("chat"); }}>Open Chat</button>
                 </div>
-
                 <div className="card">
                   <div className="card-label">Profile</div>
                   <div className="card-title">Update inputs</div>
-                  <div className="card-body">Changed your goals, schedule, or equipment? Update your profile and your program will regenerate automatically next cycle.</div>
-                  <button className="card-btn ghost" onClick={() => setActiveTab('profile')}>Update Profile</button>
+                  <div className="card-body">Changed your schedule, equipment, or goals? Update your profile and your program regenerates next cycle.</div>
+                  <button className="card-btn ghost" onClick={function() { setActiveTab("profile"); }}>Update Profile</button>
                 </div>
               </div>
-            </>
+            </div>
           )}
 
           {/* TRAINING */}
-          {activeTab === 'training' && (
-            <>
+          {activeTab === "training" && (
+            <div>
               <div className="dash-page-title"><em>Training</em> Program</div>
-              <div className="dash-page-sub">{program?.program_name || 'Your personalized program'} · Block {program?.block_number || 1} of 3</div>
+              <div className="dash-page-sub">
+                {(program && program.program_name) ? program.program_name : "Hypertrophy Block 1"} — Block {(program && program.block_number) ? program.block_number : 1} of 3.
+                Log your sets inline. The Regimen adjusts next week automatically.
+              </div>
 
-              {!program || program.status !== 'ready' ? (
-                <div className="card"><div className="card-body">Your program is being generated. Check back in a moment.</div></div>
-              ) : (
-                training?.blocks?.map((block, bi) => (
-                  <div key={bi}>
-                    <div className="program-week">
-                      <div className="program-week-title">Block {block.block} · Weeks {block.weeks} · RIR Progression: 3-4 → 2-3 → 1-2 → Deload</div>
-                      {block.days?.map((day, di) => (
-                        <div className="program-day" key={di}>
-                          <div className="program-day-header">{day.day} — {day.focus}</div>
-                          {day.exercises?.map((ex, ei) => (
-                            <div className="exercise-row" key={ei}>
-                              <div>
-                                <div className="exercise-name">{ex.superset_with ? `Superset: ${ex.name} + ${ex.superset_with}` : ex.name}</div>
-                                {ex.note && <div className="exercise-note">{ex.note}</div>}
-                              </div>
-                              <div className="exercise-stat">{ex.sets}<div className="exercise-stat-label">sets</div></div>
-                              <div className="exercise-stat">{ex.reps}<div className="exercise-stat-label">reps</div></div>
-                              <div className="exercise-stat">{ex.rest}<div className="exercise-stat-label">rest</div></div>
-                            </div>
-                          ))}
-                        </div>
-                      ))}
+              {/* Week selector */}
+              <div className="week-tabs">
+                {[1, 2, 3, 4].map(function(w) {
+                  return (
+                    <button key={w} className={currentWeek === w ? "week-tab active" : "week-tab"} onClick={function() { setCurrentWeek(w); }}>
+                      {w === 4 ? "Week 4 (Deload)" : "Week " + w}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {block && block.days && block.days.map(function(day, di) {
+                var isOpen = openDay === di;
+                var complete = isDayComplete(day);
+                return (
+                  <div className="day-block" key={day.day}>
+                    <div className="day-header" onClick={function() { setOpenDay(isOpen ? -1 : di); }}>
+                      <div className="day-header-left">
+                        {complete && <div className="day-completed">✓</div>}
+                        <div className="day-label">{day.day} — {day.focus}</div>
+                        <div className="day-type">{day.type}</div>
+                      </div>
+                      <div className={isOpen ? "day-toggle open" : "day-toggle"}>+</div>
                     </div>
+
+                    {isOpen && (
+                      <div className="exercises-table">
+                        <div className="exercise-header-row">
+                          <div className="exercise-col-label">Exercise</div>
+                          <div className="exercise-col-label" style={{ textAlign: "center" }}>Weight</div>
+                          <div className="exercise-col-label" style={{ textAlign: "center" }}>Reps</div>
+                          <div className="exercise-col-label" style={{ textAlign: "center" }}>RIR</div>
+                          <div className="exercise-col-label" style={{ textAlign: "center" }}>Target</div>
+                          <div className="exercise-col-label" style={{ textAlign: "center" }}>Notes</div>
+                          <div className="exercise-col-label"></div>
+                        </div>
+
+                        {day.exercises && day.exercises.map(function(ex, ei) {
+                          return (
+                            <div key={ex.name + ei}>
+                              {Array.from({ length: ex.sets }).map(function(_, si) {
+                                var key = getLogKey(day.day, ex.name, si);
+                                var logEntry = logs[key] || {};
+                                return (
+                                  <div key={si}>
+                                    <div className={logEntry.saved ? "exercise-row logged" : "exercise-row"}>
+                                      <div>
+                                        {si === 0 && (
+                                          <div>
+                                            <div className="exercise-name">{ex.name}</div>
+                                            {ex.note && <div className="exercise-target">{ex.note}</div>}
+                                          </div>
+                                        )}
+                                        {si > 0 && (
+                                          <div className="exercise-target" style={{ paddingLeft: 8, color: "var(--mid)", fontSize: 11 }}>Set {si + 1}</div>
+                                        )}
+                                      </div>
+                                      <LogInput
+                                        placeholder="lbs"
+                                        value={logEntry.weight || ""}
+                                        onChange={function(v) { updateLog(day.day, ex.name, si, "weight", v); }}
+                                      />
+                                      <LogInput
+                                        placeholder={ex.reps}
+                                        value={logEntry.reps || ""}
+                                        onChange={function(v) { updateLog(day.day, ex.name, si, "reps", v); }}
+                                      />
+                                      <LogInput
+                                        placeholder={ex.rir_week1}
+                                        value={logEntry.rir || ""}
+                                        onChange={function(v) { updateLog(day.day, ex.name, si, "rir", v); }}
+                                      />
+                                      <div style={{ textAlign: "center", fontSize: 11, color: "var(--mid)", fontFamily: "Barlow Condensed" }}>
+                                        {ex.reps} @ {ex.rir_week1}
+                                      </div>
+                                      <div className="log-input" style={{ padding: "4px 6px" }}>
+                                        <input
+                                          type="text"
+                                          placeholder="notes"
+                                          value={logEntry.notes || ""}
+                                          onChange={function(e) { updateLog(day.day, ex.name, si, "notes", e.target.value); }}
+                                          style={{ width: "100%", border: "none", outline: "none", font: "inherit", fontSize: 11, background: "transparent", color: "var(--mid)" }}
+                                        />
+                                      </div>
+                                      <button
+                                        className={logEntry.saved ? "log-btn saved" : "log-btn"}
+                                        onClick={function() { saveLog(day.day, ex.name, si, si + 1); }}
+                                        disabled={logEntry.saving}
+                                        title="Save set"
+                                      >
+                                        {logEntry.saving ? "..." : logEntry.saved ? "✓" : "→"}
+                                      </button>
+                                    </div>
+                                    {logEntry.suggestion && (
+                                      <div className="progression-tip">
+                                        <div className="progression-tip-icon">📈</div>
+                                        <div className="progression-tip-text">
+                                          <strong>Next week: </strong>{logEntry.suggestion}
+                                        </div>
+                                      </div>
+                                    )}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
-                ))
-              )}
-            </>
+                );
+              })}
+            </div>
           )}
 
           {/* NUTRITION */}
-          {activeTab === 'nutrition' && (
-            <>
+          {activeTab === "nutrition" && (
+            <div>
               <div className="dash-page-title"><em>Nutrition</em> Plan</div>
-              <div className="dash-page-sub">Built around your training schedule and body composition goal.</div>
-
-              {!nutrition ? (
-                <div className="card"><div className="card-body">Your nutrition plan will appear here once your program is generated.</div></div>
-              ) : (
-                <>
+              <div className="dash-page-sub">Built around your training schedule and body composition goal. High carb on training days, low carb on rest days.</div>
+              {program && program.meal_plan ? (
+                <div>
                   <div className="macro-bar">
                     {[
-                      { num: nutrition.daily_calories, label: 'Calories' },
-                      { num: nutrition.protein_g + 'g', label: 'Protein' },
-                      { num: nutrition.carbs_g_training + 'g', label: 'Carbs (training)' },
-                      { num: nutrition.fat_g + 'g', label: 'Fat' },
-                    ].map(m => (
-                      <div className="macro-item" key={m.label}>
-                        <div className="macro-num">{m.num}</div>
-                        <div className="macro-label">{m.label}</div>
-                      </div>
-                    ))}
+                      { num: program.meal_plan.daily_calories, label: "Calories" },
+                      { num: (program.meal_plan.protein_g || "--") + "g", label: "Protein" },
+                      { num: (program.meal_plan.carbs_g_training || "--") + "g", label: "Carbs (training)" },
+                      { num: (program.meal_plan.fat_g || "--") + "g", label: "Fat" },
+                    ].map(function(m) {
+                      return (
+                        <div className="macro-item" key={m.label}>
+                          <div className="macro-num">{m.num}</div>
+                          <div className="macro-label">{m.label}</div>
+                        </div>
+                      );
+                    })}
                   </div>
-
-                  <div style={{marginBottom:24}}>
-                    <div className="program-week-title" style={{marginBottom:16}}>Sample Training Day</div>
-                    {Object.entries(nutrition.sample_training_day || {}).map(([meal, data]) => (
+                  {program.meal_plan.sample_training_day && Object.entries(program.meal_plan.sample_training_day).map(function(entry) {
+                    var meal = entry[0];
+                    var data = entry[1];
+                    return (
                       <div className="meal-card" key={meal}>
                         <div className="meal-name">{meal.charAt(0).toUpperCase() + meal.slice(1)}</div>
                         <div className="meal-desc">{data.description}</div>
@@ -363,88 +654,101 @@ export default function Dashboard() {
                           <div className="meal-macro"><strong>{data.calories}</strong> cal</div>
                         </div>
                       </div>
-                    ))}
-                  </div>
-                </>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="card">
+                  <div className="card-body">Your nutrition plan will appear here once your program is generated. Complete your intake form to get started.</div>
+                </div>
               )}
-            </>
+            </div>
           )}
 
           {/* CHAT */}
-          {activeTab === 'chat' && (
-            <>
+          {activeTab === "chat" && (
+            <div>
               <div className="dash-page-title">The <em>Regimen</em></div>
               <div className="dash-page-sub">Ask anything about your training, nutrition, sleep, or recovery.</div>
-
               <div className="chat-embed">
                 <div className="chat-embed-header">
                   <div className="chat-mark">R</div>
                   <div>
                     <div className="chat-embed-title">The Regimen</div>
-                    <div className="chat-embed-sub">Your personal coaching layer · Always available</div>
+                    <div className="chat-embed-sub">Your personal coaching layer</div>
                   </div>
                 </div>
-
                 <div className="chat-messages">
                   {chatMessages.length === 0 && !chatLoading && (
-                    <div style={{color:'var(--mid)',fontSize:14,fontWeight:300,lineHeight:1.7}}>
-                      Ask me anything about your program — exercise swaps, nutrition questions, sleep issues, recovery. I know your goals, your equipment, and your current program.
+                    <div style={{ color: "var(--mid)", fontSize: 13, fontWeight: 300, lineHeight: 1.7 }}>
+                      Ask about your program, swap exercises, get meal guidance, or troubleshoot your sleep. I know your goals, equipment, and current program.
                     </div>
                   )}
-                  {chatMessages.map((m, i) => (
-                    <div key={i} className={`chat-msg ${m.role}`}>
-                      <div className={`chat-avatar ${m.role}`}>{m.role === 'assistant' ? 'R' : firstName[0]?.toUpperCase()}</div>
-                      <div className="chat-bubble">{m.content}</div>
-                    </div>
-                  ))}
+                  {chatMessages.map(function(m, i) {
+                    return (
+                      <div key={i} className={m.role === "user" ? "chat-msg user" : "chat-msg"}>
+                        <div className={m.role === "user" ? "chat-avatar user" : "chat-avatar"}>
+                          {m.role === "assistant" ? "R" : firstName.charAt(0).toUpperCase()}
+                        </div>
+                        <div className="chat-bubble">{m.content}</div>
+                      </div>
+                    );
+                  })}
                   {chatLoading && (
                     <div className="chat-msg">
                       <div className="chat-avatar">R</div>
-                      <div className="chat-bubble"><div className="typing"><div className="typing-dot"/><div className="typing-dot"/><div className="typing-dot"/></div></div>
+                      <div className="chat-bubble">
+                        <div className="typing">
+                          <div className="typing-dot"></div>
+                          <div className="typing-dot"></div>
+                          <div className="typing-dot"></div>
+                        </div>
+                      </div>
                     </div>
                   )}
-                  <div ref={chatEndRef} />
+                  <div ref={chatEndRef}></div>
                 </div>
-
                 {chatMessages.length === 0 && (
-                  <div className="chat-suggestions">
-                    {CHAT_SUGGESTIONS.map((s, i) => (
-                      <button key={i} className="chat-suggestion" onClick={() => sendChat(s)}>{s}</button>
-                    ))}
+                  <div className="chat-suggestions-wrap">
+                    {CHAT_SUGGESTIONS.map(function(s, i) {
+                      return (
+                        <button key={i} className="chat-suggestion" onClick={function() { sendChat(s); }}>{s}</button>
+                      );
+                    })}
                   </div>
                 )}
-
                 <div className="chat-input-row">
                   <input
                     className="chat-input"
                     value={chatInput}
-                    onChange={e => setChatInput(e.target.value)}
-                    onKeyDown={e => { if(e.key==='Enter' && !e.shiftKey){ e.preventDefault(); sendChat() }}}
+                    onChange={function(e) { setChatInput(e.target.value); }}
+                    onKeyDown={function(e) { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendChat(); } }}
                     placeholder="Ask The Regimen..."
                   />
-                  <button className="chat-send" onClick={() => sendChat()} disabled={!chatInput.trim() || chatLoading}>
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>
+                  <button className="chat-send" onClick={function() { sendChat(); }} disabled={!chatInput.trim() || chatLoading}>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <line x1="22" y1="2" x2="11" y2="13"></line>
+                      <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
                     </svg>
                   </button>
                 </div>
               </div>
-            </>
+            </div>
           )}
 
           {/* PROFILE */}
-          {activeTab === 'profile' && (
-            <>
+          {activeTab === "profile" && (
+            <div>
               <div className="dash-page-title">Your <em>Profile</em></div>
               <div className="dash-page-sub">Update your information to regenerate your program next cycle.</div>
               <div className="card">
-                <div className="card-body">Profile editing coming soon. Contact us at hello@rallisregimen.com to update your intake information.</div>
+                <div className="card-body">Profile editing coming soon. To update your intake information now, email hello@rallisregimen.com.</div>
               </div>
-            </>
+            </div>
           )}
 
         </div>
       </div>
-    </>
-  )
+    </div>
+  );
 }
