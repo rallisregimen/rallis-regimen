@@ -1,130 +1,85 @@
-// pages/api/workout-log.js
-import { createClient } from "@supabase/supabase-js";
-
-function getSupabase() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL,
-    process.env.SUPABASE_SERVICE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-  );
-}
-
 export default async function handler(req, res) {
-  if (req.method === "POST") return saveLog(req, res);
-  if (req.method === "GET") return getLogs(req, res);
-  return res.status(405).json({ error: "Method not allowed" });
-}
+  var SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  var SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  var ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY;
 
-async function saveLog(req, res) {
-  var supabase = getSupabase();
-  var b = req.body;
-
-  if (!b.exerciseName) {
-    return res.status(400).json({ error: "exerciseName required" });
-  }
-
-  try {
-    var insertResult = await supabase.from("workout_logs").insert({
-      user_id: b.userId || null,
-      program_id: b.programId || null,
-      block_number: b.blockNumber || null,
-      week_number: b.weekNumber || null,
-      day_label: b.dayLabel || null,
-      exercise_name: b.exerciseName,
-      set_number: b.setNumber || null,
-      weight_lbs: b.weightLbs || null,
-      reps: b.reps || null,
-      rir: b.rir || null,
-      notes: b.notes || null,
-      logged_at: new Date().toISOString()
-    });
-
-    if (insertResult.error) {
-      console.error("Insert error:", insertResult.error);
-    }
-
-    var suggestion = await generateProgression(
-      b.userId, b.exerciseName, b.weightLbs, b.reps, b.rir, b.notes, supabase
-    );
-
-    return res.status(200).json({ success: true, suggestion: suggestion });
-  } catch (error) {
-    console.error("Workout log error:", error);
-    return res.status(500).json({ error: "Failed to save log" });
-  }
-}
-
-async function getLogs(req, res) {
-  var supabase = getSupabase();
-  var userId = req.query.userId;
-  var exerciseName = req.query.exerciseName;
-
-  if (!userId) return res.status(400).json({ error: "userId required" });
-
-  try {
-    var query = supabase
-      .from("workout_logs")
-      .select("*")
-      .eq("user_id", userId)
-      .order("logged_at", { ascending: false })
-      .limit(50);
-
-    if (exerciseName) {
-      query = query.eq("exercise_name", exerciseName);
-    }
-
-    var result = await query;
-    if (result.error) throw result.error;
-    return res.status(200).json({ logs: result.data });
-  } catch (error) {
-    console.error("Get logs error:", error);
-    return res.status(500).json({ error: "Failed to fetch logs" });
-  }
-}
-
-async function generateProgression(userId, exerciseName, weightLbs, reps, rir, notes, supabase) {
-  try {
-    var historyResult = await supabase
-      .from("workout_logs")
-      .select("*")
-      .eq("user_id", userId)
-      .eq("exercise_name", exerciseName)
-      .order("logged_at", { ascending: false })
-      .limit(6);
-
-    var history = (historyResult.data || []).slice(1, 4);
-
-    var prompt = "You are The Regimen progression engine. Based on the workout data below, give a one sentence suggestion for next week's target. Be specific with numbers.\n\n";
-    prompt += "Exercise: " + exerciseName + "\n";
-    prompt += "This session: " + (weightLbs ? weightLbs + " lbs" : "bodyweight") + " x " + reps + " reps @ " + rir + " RIR\n";
-    if (notes) prompt += "Member notes: " + notes + "\n";
-    if (history.length > 0) {
-      prompt += "Recent history:\n";
-      history.forEach(function(log) {
-        prompt += "- " + (log.weight_lbs ? log.weight_lbs + " lbs" : "BW") + " x " + log.reps + " reps @ " + log.rir + " RIR";
-        if (log.notes) prompt += " (" + log.notes + ")";
-        prompt += "\n";
-      });
-    }
-    prompt += "Suggestion (one sentence, specific numbers):";
-
-    var response = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
+  async function db(method, table, body, query) {
+    var url = SUPABASE_URL + "/rest/v1/" + table + (query || "");
+    var r = await fetch(url, {
+      method: method,
       headers: {
         "Content-Type": "application/json",
-        "x-api-key": process.env.ANTHROPIC_API_KEY,
-        "anthropic-version": "2023-06-01"
+        "apikey": SUPABASE_KEY,
+        "Authorization": "Bearer " + SUPABASE_KEY,
+        "Prefer": "return=minimal"
       },
-      body: JSON.stringify({
-        model: "claude-haiku-4-5-20251001",
-        max_tokens: 100,
-        messages: [{ role: "user", content: prompt }]
-      })
+      body: body ? JSON.stringify(body) : undefined
     });
-
-    var data = await response.json();
-    return (data.content && data.content[0]) ? data.content[0].text : null;
-  } catch (error) {
-    console.error("Progression error:", error);
-    return null;
+    if (method === "GET") return r.json();
+    return r;
   }
+
+  if (req.method === "POST") {
+    var b = req.body;
+    try {
+      await db("POST", "workout_logs", {
+        user_id: b.userId || null,
+        program_id: b.programId || null,
+        block_number: b.blockNumber || null,
+        week_number: b.weekNumber || null,
+        day_label: b.dayLabel || null,
+        exercise_name: b.exerciseName,
+        set_number: b.setNumber || null,
+        weight_lbs: b.weightLbs || null,
+        reps: b.reps || null,
+        rir: b.rir || null,
+        notes: b.notes || null,
+        logged_at: new Date().toISOString()
+      });
+
+      var suggestion = null;
+      try {
+        var history = await db("GET", "workout_logs", null,
+          "?user_id=eq." + b.userId + "&exercise_name=eq." + encodeURIComponent(b.exerciseName) + "&order=logged_at.desc&limit=4"
+        );
+        var past = Array.isArray(history) ? history.slice(1) : [];
+        var prompt = "One sentence progression suggestion for next week. Exercise: " + b.exerciseName +
+          ". This week: " + (b.weightLbs ? b.weightLbs + "lbs" : "BW") + " x " + b.reps + " reps @ " + b.rir + " RIR.";
+        if (b.notes) prompt += " Notes: " + b.notes + ".";
+        if (past.length > 0) {
+          prompt += " History: " + past.map(function(l) {
+            return (l.weight_lbs || "BW") + " x " + l.reps + " @ " + l.rir;
+          }).join(", ") + ".";
+        }
+        prompt += " Be specific with numbers. One sentence only.";
+        var ar = await fetch("https://api.anthropic.com/v1/messages", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "x-api-key": ANTHROPIC_KEY, "anthropic-version": "2023-06-01" },
+          body: JSON.stringify({ model: "claude-haiku-4-5-20251001", max_tokens: 80, messages: [{ role: "user", content: prompt }] })
+        });
+        var ad = await ar.json();
+        suggestion = ad.content && ad.content[0] ? ad.content[0].text : null;
+      } catch (e) { suggestion = null; }
+
+      return res.status(200).json({ success: true, suggestion: suggestion });
+    } catch (err) {
+      console.error(err);
+      return res.status(500).json({ error: "Failed to save" });
+    }
+  }
+
+  if (req.method === "GET") {
+    try {
+      var uid = req.query.userId;
+      var ex = req.query.exerciseName;
+      var q = "?user_id=eq." + uid + "&order=logged_at.desc&limit=50";
+      if (ex) q += "&exercise_name=eq." + encodeURIComponent(ex);
+      var logs = await db("GET", "workout_logs", null, q);
+      return res.status(200).json({ logs: logs });
+    } catch (err) {
+      return res.status(500).json({ error: "Failed to fetch" });
+    }
+  }
+
+  return res.status(405).json({ error: "Method not allowed" });
 }
