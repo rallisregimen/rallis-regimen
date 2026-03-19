@@ -1,58 +1,50 @@
 // pages/api/workout-log.js
-// Saves workout logs and returns progression suggestions
+import { createClient } from "@supabase/supabase-js";
 
-import { getServerSupabase } from "../../lib/supabase";
-import { buildSystemPrompt } from "../../lib/systemPrompt";
+function getSupabase() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL,
+    process.env.SUPABASE_SERVICE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  );
+}
 
 export default async function handler(req, res) {
-  if (req.method === "POST") {
-    return saveLog(req, res);
-  }
-  if (req.method === "GET") {
-    return getLogs(req, res);
-  }
+  if (req.method === "POST") return saveLog(req, res);
+  if (req.method === "GET") return getLogs(req, res);
   return res.status(405).json({ error: "Method not allowed" });
 }
 
 async function saveLog(req, res) {
-  var supabase = getServerSupabase();
-  var body = req.body;
-  var userId = body.userId;
-  var exerciseName = body.exerciseName;
-  var setNumber = body.setNumber;
-  var weightLbs = body.weightLbs;
-  var reps = body.reps;
-  var rir = body.rir;
-  var notes = body.notes;
-  var programId = body.programId;
-  var blockNumber = body.blockNumber;
-  var weekNumber = body.weekNumber;
-  var dayLabel = body.dayLabel;
+  var supabase = getSupabase();
+  var b = req.body;
 
-  if (!userId || !exerciseName) {
-    return res.status(400).json({ error: "userId and exerciseName required" });
+  if (!b.exerciseName) {
+    return res.status(400).json({ error: "exerciseName required" });
   }
 
   try {
     var insertResult = await supabase.from("workout_logs").insert({
-      user_id: userId,
-      program_id: programId,
-      block_number: blockNumber,
-      week_number: weekNumber,
-      day_label: dayLabel,
-      exercise_name: exerciseName,
-      set_number: setNumber,
-      weight_lbs: weightLbs,
-      reps: reps,
-      rir: rir,
-      notes: notes || null,
+      user_id: b.userId || null,
+      program_id: b.programId || null,
+      block_number: b.blockNumber || null,
+      week_number: b.weekNumber || null,
+      day_label: b.dayLabel || null,
+      exercise_name: b.exerciseName,
+      set_number: b.setNumber || null,
+      weight_lbs: b.weightLbs || null,
+      reps: b.reps || null,
+      rir: b.rir || null,
+      notes: b.notes || null,
       logged_at: new Date().toISOString()
     });
 
-    if (insertResult.error) throw insertResult.error;
+    if (insertResult.error) {
+      console.error("Insert error:", insertResult.error);
+    }
 
-    // After saving, generate a progression suggestion asynchronously
-    var suggestion = await generateProgression(userId, exerciseName, weightLbs, reps, rir, notes, supabase);
+    var suggestion = await generateProgression(
+      b.userId, b.exerciseName, b.weightLbs, b.reps, b.rir, b.notes, supabase
+    );
 
     return res.status(200).json({ success: true, suggestion: suggestion });
   } catch (error) {
@@ -62,7 +54,7 @@ async function saveLog(req, res) {
 }
 
 async function getLogs(req, res) {
-  var supabase = getServerSupabase();
+  var supabase = getSupabase();
   var userId = req.query.userId;
   var exerciseName = req.query.exerciseName;
 
@@ -82,7 +74,6 @@ async function getLogs(req, res) {
 
     var result = await query;
     if (result.error) throw result.error;
-
     return res.status(200).json({ logs: result.data });
   } catch (error) {
     console.error("Get logs error:", error);
@@ -92,7 +83,6 @@ async function getLogs(req, res) {
 
 async function generateProgression(userId, exerciseName, weightLbs, reps, rir, notes, supabase) {
   try {
-    // Get last 3 logs for this exercise to understand trend
     var historyResult = await supabase
       .from("workout_logs")
       .select("*")
@@ -101,22 +91,21 @@ async function generateProgression(userId, exerciseName, weightLbs, reps, rir, n
       .order("logged_at", { ascending: false })
       .limit(6);
 
-    var history = historyResult.data || [];
+    var history = (historyResult.data || []).slice(1, 4);
 
-    // Build a progression prompt
-    var prompt = "You are The Regimen progression engine. Based on the workout data below, provide a brief, direct suggestion for next week's target for this exercise. One or two sentences maximum. Be specific with numbers.\n\n";
+    var prompt = "You are The Regimen progression engine. Based on the workout data below, give a one sentence suggestion for next week's target. Be specific with numbers.\n\n";
     prompt += "Exercise: " + exerciseName + "\n";
     prompt += "This session: " + (weightLbs ? weightLbs + " lbs" : "bodyweight") + " x " + reps + " reps @ " + rir + " RIR\n";
     if (notes) prompt += "Member notes: " + notes + "\n";
-    if (history.length > 1) {
-      prompt += "\nRecent history:\n";
-      history.slice(1, 4).forEach(function(log) {
+    if (history.length > 0) {
+      prompt += "Recent history:\n";
+      history.forEach(function(log) {
         prompt += "- " + (log.weight_lbs ? log.weight_lbs + " lbs" : "BW") + " x " + log.reps + " reps @ " + log.rir + " RIR";
-        if (log.notes) prompt += " (note: " + log.notes + ")";
+        if (log.notes) prompt += " (" + log.notes + ")";
         prompt += "\n";
       });
     }
-    prompt += "\nRIR target for next week based on block progression. If RIR is 2+ above target, increase load or reps. If at target, maintain and add 1-2 reps. If below target, hold weight and focus on form. Always factor in any notes about pain, discomfort, or form breakdown.\n\nSuggestion:";
+    prompt += "Suggestion (one sentence, specific numbers):";
 
     var response = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
@@ -127,15 +116,15 @@ async function generateProgression(userId, exerciseName, weightLbs, reps, rir, n
       },
       body: JSON.stringify({
         model: "claude-haiku-4-5-20251001",
-        max_tokens: 150,
+        max_tokens: 100,
         messages: [{ role: "user", content: prompt }]
       })
     });
 
     var data = await response.json();
-    return data.content && data.content[0] ? data.content[0].text : null;
+    return (data.content && data.content[0]) ? data.content[0].text : null;
   } catch (error) {
-    console.error("Progression generation error:", error);
+    console.error("Progression error:", error);
     return null;
   }
 }
