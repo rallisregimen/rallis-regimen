@@ -188,6 +188,7 @@ export default function IntakeForm() {
     try {
       var p = Object.assign({}, form, {
         user_id: user ? user.id : null,
+        email: user ? user.email : null,
         age: parseInt(form.age) || null,
         height_ft: parseInt(form.height_ft) || null,
         height_in: parseInt(form.height_in) || null,
