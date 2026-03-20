@@ -276,7 +276,30 @@ export default function Dashboard() {
   var chatLoading = chatLoadingState[0];
   var setChatLoading = chatLoadingState[1];
 
-  var chatEndRef = useRef(null);
+  var regenState = useState("");
+  var regenMessage = regenState[0];
+  var setRegenMessage = regenState[1];
+
+  async function regenerateProgram() {
+    if (!user) { setRegenMessage("Please log in to regenerate your program."); return; }
+    setRegenMessage("Generating your program... this takes about 30 seconds.");
+    try {
+      var res = await fetch("/api/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: user.id })
+      });
+      if (res.ok) {
+        setRegenMessage("Program generated! Refreshing...");
+        setTimeout(function() { window.location.reload(); }, 1500);
+      } else {
+        var err = await res.json();
+        setRegenMessage("Generation failed: " + (err.error || "unknown error") + ". Please try again.");
+      }
+    } catch (e) {
+      setRegenMessage("Something went wrong. Please try again.");
+    }
+  }
 
   useEffect(function() {
     async function loadData() {
@@ -470,8 +493,13 @@ export default function Dashboard() {
               <div className="card-grid">
                 <div className="card">
                   <div className="card-label">Training</div>
-                  <div className="card-title">{(program && program.program_name) ? program.program_name : "Hypertrophy Block 1"}</div>
-                  <div className="card-body">Block {(program && program.block_number) ? program.block_number : 1} of 3. Log your sets inline as you train and get automatic progression suggestions each week.</div>
+                  <div className="card-title">{(program && program.program_name) ? program.program_name : "Program Generating..."}</div>
+                  <div className="card-body">
+                    {program && program.program_name
+                      ? "Block " + ((program && program.block_number) ? program.block_number : 1) + " of 3. Log your sets inline as you train and get automatic progression suggestions each week."
+                      : "Your program is being generated. This takes about 30 seconds. Refresh the page to check."
+                    }
+                  </div>
                   <button className="card-btn" onClick={function() { setActiveTab("training"); }}>Open Program</button>
                 </div>
                 <div className="card">
@@ -487,12 +515,18 @@ export default function Dashboard() {
                   <button className="card-btn" onClick={function() { setActiveTab("chat"); }}>Open Chat</button>
                 </div>
                 <div className="card">
-                  <div className="card-label">Profile</div>
-                  <div className="card-title">Update inputs</div>
-                  <div className="card-body">Changed your schedule, equipment, or goals? Update your profile and your program regenerates next cycle.</div>
+                  <div className="card-label">Actions</div>
+                  <div className="card-title">Program Tools</div>
+                  <div className="card-body">Regenerate your program if something looks wrong, or update your profile for next month.</div>
+                  <button className="card-btn" onClick={regenerateProgram} style={{ marginBottom: 8 }}>Regenerate Program</button>
                   <button className="card-btn ghost" onClick={function() { setActiveTab("profile"); }}>Update Profile</button>
                 </div>
               </div>
+              {regenMessage && (
+                <div style={{ marginTop: 16, padding: "12px 16px", background: "var(--maroon-light)", border: "1px solid rgba(123,26,56,.2)", fontSize: 14, fontWeight: 300, color: "var(--charcoal)" }}>
+                  {regenMessage}
+                </div>
+              )}
             </div>
           )}
 
