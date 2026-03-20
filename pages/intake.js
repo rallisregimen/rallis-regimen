@@ -153,21 +153,31 @@ export default function IntakeForm() {
   var form = formState[0]; var setForm = formState[1];
 
   useEffect(function() {
-    async function checkAuth() {
-      var result = await supabase.auth.getUser();
-      if (result.data && result.data.user) {
-        setUser(result.data.user);
-        // Pre-fill name if available
-        if (result.data.user.user_metadata && result.data.user.user_metadata.full_name) {
-          setForm(function(f) { return Object.assign({}, f, { first_name: result.data.user.user_metadata.full_name.split(' ')[0] }); });
+    var authListener = supabase.auth.onAuthStateChange(function(event, session) {
+      if (session && session.user) {
+        setUser(session.user);
+        if (session.user.user_metadata && session.user.user_metadata.full_name) {
+          setForm(function(f) { return Object.assign({}, f, { first_name: session.user.user_metadata.full_name.split(' ')[0] }); });
         }
+        setChecking(false);
       } else {
-        // Not logged in - redirect to join
-        router.push('/join');
+        // Give it a moment then check again
+        setTimeout(async function() {
+          var result = await supabase.auth.getSession();
+          if (result.data && result.data.session && result.data.session.user) {
+            setUser(result.data.session.user);
+            setChecking(false);
+          } else {
+            router.push('/login');
+          }
+        }, 500);
       }
-      setChecking(false);
-    }
-    checkAuth();
+    });
+    return function() {
+      if (authListener && authListener.data && authListener.data.subscription) {
+        authListener.data.subscription.unsubscribe();
+      }
+    };
   }, []);
 
   function set(k, v) {
