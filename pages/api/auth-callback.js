@@ -11,66 +11,80 @@ function getAdminSupabase() {
   );
 }
 
+async function createOrUpdateUser(supabase, email, name, password, stripeCustomerId, plan) {
+  var listResult = await supabase.auth.admin.listUsers();
+  var users = (listResult.data && listResult.data.users) ? listResult.data.users : [];
+  var existingUser = users.find(function(u) { return u.email === email; });
+
+  var userId;
+  if (existingUser) {
+    userId = existingUser.id;
+    // Update password if provided
+    if (password) {
+      await supabase.auth.admin.updateUserById(userId, { password: password });
+    }
+  } else {
+    var createData = {
+      email: email,
+      email_confirm: true,
+      user_metadata: { full_name: name || '' }
+    };
+    if (password) createData.password = password;
+
+    var createResult = await supabase.auth.admin.createUser(createData);
+    if (createResult.error) throw createResult.error;
+    userId = createResult.data.user.id;
+  }
+
+  await supabase.from('profiles').upsert({
+    id: userId,
+    email: email,
+    full_name: name || '',
+    stripe_customer_id: stripeCustomerId || null,
+    subscription_status: stripeCustomerId ? 'trialing' : 'active',
+    subscription_tier: plan || 'monthly',
+    updated_at: new Date().toISOString()
+  });
+
+  return userId;
+}
+
 export default async function handler(req, res) {
   if (req.method !== 'GET') return res.status(405).end();
 
   var bypass = req.query.bypass;
   var name = req.query.name || '';
   var email = req.query.email;
+  var password = req.query.password || '';
   var sessionId = req.query.session_id;
 
   var supabase = getAdminSupabase();
 
-  // ADMIN BYPASS - skip email, create session directly
+  // ADMIN BYPASS - create user with password, sign them in, go straight to intake
   if (bypass === 'true' && email) {
     try {
-      // Create or get user
-      var listResult = await supabase.auth.admin.listUsers();
-      var users = (listResult.data && listResult.data.users) ? listResult.data.users : [];
-      var existingUser = users.find(function(u) { return u.email === email; });
+      await createOrUpdateUser(supabase, email, name, password, null, 'admin');
 
-      var userId;
-      if (existingUser) {
-        userId = existingUser.id;
-      } else {
-        var createResult = await supabase.auth.admin.createUser({
+      // Sign them in directly and get a session token
+      var signInResult = await supabase.auth.signInWithPassword({ email: email, password: password || 'RALLISTEST_default_2026' });
+
+      if (signInResult.error || !signInResult.data.session) {
+        // Fallback to magic link
+        var linkResult = await supabase.auth.admin.generateLink({
+          type: 'magiclink',
           email: email,
-          email_confirm: true,
-          user_metadata: { full_name: name }
+          options: { redirectTo: process.env.NEXT_PUBLIC_APP_URL + '/intake' }
         });
-        if (createResult.error) throw createResult.error;
-        userId = createResult.data.user.id;
+        if (linkResult.data && linkResult.data.properties && linkResult.data.properties.action_link) {
+          return res.redirect(linkResult.data.properties.action_link);
+        }
+        return res.redirect('/intake');
       }
 
-      // Upsert profile
-      await supabase.from('profiles').upsert({
-        id: userId,
-        email: email,
-        full_name: name,
-        subscription_status: 'active',
-        updated_at: new Date().toISOString()
-      });
-
-      // Generate a magic link and extract the token to create a real session
-      var linkResult = await supabase.auth.admin.generateLink({
-        type: 'magiclink',
-        email: email,
-        options: { redirectTo: process.env.NEXT_PUBLIC_APP_URL + '/intake' }
-      });
-
-      if (linkResult.error) throw linkResult.error;
-
-      // Redirect directly to the magic link URL - no email needed
-      var magicUrl = linkResult.data.properties && linkResult.data.properties.action_link
-        ? linkResult.data.properties.action_link
-        : linkResult.data.action_link;
-
-      if (magicUrl) {
-        return res.redirect(magicUrl);
-      }
-
-      // Fallback - redirect to intake anyway
-      return res.redirect('/intake');
+      var session = signInResult.data.session;
+      // Redirect to intake with session tokens in URL fragment
+      var intakeUrl = process.env.NEXT_PUBLIC_APP_URL + '/intake#access_token=' + session.access_token + '&refresh_token=' + session.refresh_token + '&type=signup';
+      return res.redirect(intakeUrl);
     } catch (err) {
       console.error('Bypass error:', err);
       return res.redirect('/intake');
@@ -81,55 +95,43 @@ export default async function handler(req, res) {
   if (!sessionId) return res.redirect('/join?error=no_session');
 
   try {
-    var session = await stripe.checkout.sessions.retrieve(sessionId);
-    var customerEmail = (session.customer_details && session.customer_details.email)
-      ? session.customer_details.email
-      : (session.metadata && session.metadata.email);
-    var customerName = (session.customer_details && session.customer_details.name)
-      ? session.customer_details.name
-      : (session.metadata && session.metadata.name) || '';
+    var stripeSession = await stripe.checkout.sessions.retrieve(sessionId);
+    var customerEmail = (stripeSession.customer_details && stripeSession.customer_details.email)
+      ? stripeSession.customer_details.email
+      : (stripeSession.metadata && stripeSession.metadata.email);
+    var customerName = (stripeSession.customer_details && stripeSession.customer_details.name)
+      ? stripeSession.customer_details.name
+      : (stripeSession.metadata && stripeSession.metadata.name) || '';
+    var customerPassword = stripeSession.metadata && stripeSession.metadata.password ? stripeSession.metadata.password : null;
+    var plan = stripeSession.metadata && stripeSession.metadata.plan ? stripeSession.metadata.plan : 'monthly';
 
     if (!customerEmail) return res.redirect('/join?error=no_email');
 
-    // Create or get user
-    var listResult2 = await supabase.auth.admin.listUsers();
-    var users2 = (listResult2.data && listResult2.data.users) ? listResult2.data.users : [];
-    var existingUser2 = users2.find(function(u) { return u.email === customerEmail; });
+    await createOrUpdateUser(supabase, customerEmail, customerName, customerPassword, stripeSession.customer, plan);
 
-    var userId2;
-    if (existingUser2) {
-      userId2 = existingUser2.id;
-    } else {
-      var createResult2 = await supabase.auth.admin.createUser({
-        email: customerEmail,
-        email_confirm: true,
-        user_metadata: { full_name: customerName }
-      });
-      if (createResult2.error) throw createResult2.error;
-      userId2 = createResult2.data.user.id;
+    if (customerPassword) {
+      // Sign them in directly with their password
+      var signInResult2 = await supabase.auth.signInWithPassword({ email: customerEmail, password: customerPassword });
+
+      if (!signInResult2.error && signInResult2.data.session) {
+        var session2 = signInResult2.data.session;
+        var intakeUrl2 = process.env.NEXT_PUBLIC_APP_URL + '/intake#access_token=' + session2.access_token + '&refresh_token=' + session2.refresh_token + '&type=signup';
+        return res.redirect(intakeUrl2);
+      }
     }
 
-    // Upsert profile
-    await supabase.from('profiles').upsert({
-      id: userId2,
-      email: customerEmail,
-      full_name: customerName,
-      stripe_customer_id: session.customer,
-      subscription_status: 'trialing',
-      subscription_tier: (session.metadata && session.metadata.plan) ? session.metadata.plan : 'monthly',
-      updated_at: new Date().toISOString()
-    });
-
-    // Send magic link email to real paying member
+    // Fallback to magic link if no password
     var linkResult2 = await supabase.auth.admin.generateLink({
       type: 'magiclink',
       email: customerEmail,
       options: { redirectTo: process.env.NEXT_PUBLIC_APP_URL + '/intake' }
     });
 
-    if (linkResult2.error) throw linkResult2.error;
+    if (linkResult2.data && linkResult2.data.properties && linkResult2.data.properties.action_link) {
+      return res.redirect(linkResult2.data.properties.action_link);
+    }
 
-    return res.redirect('/check-email?email=' + encodeURIComponent(customerEmail));
+    return res.redirect('/intake');
   } catch (err) {
     console.error('Stripe auth error:', err);
     return res.redirect('/join?error=auth_failed');
