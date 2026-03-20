@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useRouter } from 'next/router';
+import { supabase } from '../lib/supabase';
 
 var styles = [
   "@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;0,900;1,400&family=Barlow+Condensed:wght@400;600;700&family=Barlow:wght@300;400&display=swap');",
@@ -91,11 +92,47 @@ export default function JoinPage() {
     setLoading(true); setErr('');
 
     if (promoOk) {
-      // Bypass: create account and go straight to intake
-      window.location.href = '/api/auth-callback?bypass=true&name=' + encodeURIComponent(name) + '&email=' + encodeURIComponent(email) + '&password=' + encodeURIComponent(password);
+      // BYPASS: sign up directly with Supabase, then go to intake
+      try {
+        // Try sign up first
+        var signUpResult = await supabase.auth.signUp({
+          email: email,
+          password: password,
+          options: { data: { full_name: name } }
+        });
+
+        if (signUpResult.error) {
+          // If user exists, try signing in instead
+          if (signUpResult.error.message && signUpResult.error.message.includes('already registered')) {
+            var signInResult = await supabase.auth.signInWithPassword({ email: email, password: password });
+            if (signInResult.error) throw signInResult.error;
+          } else {
+            throw signUpResult.error;
+          }
+        }
+
+        // Create profile record
+        var user = signUpResult.data && signUpResult.data.user ? signUpResult.data.user : null;
+        if (user) {
+          await supabase.from('profiles').upsert({
+            id: user.id,
+            email: email,
+            full_name: name,
+            subscription_status: 'active',
+            updated_at: new Date().toISOString()
+          });
+        }
+
+        router.push('/intake');
+      } catch (e) {
+        console.error('Signup error:', e);
+        setErr(e.message || 'Something went wrong. Please try again.');
+        setLoading(false);
+      }
       return;
     }
 
+    // STRIPE FLOW: go to checkout
     try {
       var res = await fetch('/api/checkout', {
         method: 'POST',
@@ -103,8 +140,12 @@ export default function JoinPage() {
         body: JSON.stringify({ email: email, name: name, password: password, plan: plan })
       });
       var data = await res.json();
-      if (data.url) { window.location.href = data.url; }
-      else { setErr('Something went wrong. Please try again.'); setLoading(false); }
+      if (data.url) {
+        window.location.href = data.url;
+      } else {
+        setErr('Something went wrong. Please try again.');
+        setLoading(false);
+      }
     } catch (e) {
       setErr('Something went wrong. Please try again.');
       setLoading(false);
