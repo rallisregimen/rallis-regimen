@@ -23,7 +23,7 @@ var DIETARY = ['None','No red meat','No pork','Pescatarian','Vegetarian','Vegan'
 var STEPS = ['About You','Goals','Training','Nutrition','Sleep','Environment'];
 
 var S = [
-  "@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;0,900;1,400&family=Barlow+Condensed:wght@400;600;700&family=Barlow:wght@300;400&display=swap');",
+  "@import url(https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;0,900;1,400&family=Barlow+Condensed:wght@400;600;700&family=Barlow:wght@300;400&display=swap);",
   '* { margin:0; padding:0; box-sizing:border-box; }',
   ':root { --m:#7B1A38; --md:#5C1229; --ml:#F2E8EC; --ow:#F7F4EF; --ch:#1A1A1A; --mi:#4A4A4A; --go:#B8943A; --bo:rgba(123,26,56,0.15); }',
   'body { background:var(--ow); font-family:Barlow,sans-serif; min-height:100vh; }',
