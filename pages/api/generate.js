@@ -1,174 +1,55 @@
-// pages/api/generate.js
-// Generates personalized programs from intake data using Claude
+import { createClient } from '@supabase/supabase-js';
 
-import { getServerSupabase } from '../../lib/supabase'
+function getSupabase() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL,
+    process.env.SUPABASE_SERVICE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  );
+}
 
-const GENERATION_PROMPT = (intake, profile) => `You are the Rallis Regimen program generator. Based on the member profile below, generate a complete personalized program in valid JSON format.
+export const config = {
+  maxDuration: 60
+};
 
-MEMBER PROFILE:
-Name: ${profile.first_name}
-Age: ${intake.age}
-Sex: ${intake.sex}
-Current weight: ${intake.current_weight_lbs} lbs
-Ideal weight: ${intake.ideal_weight_lbs} lbs
-Primary goal: ${intake.goal_primary}
-Secondary goal: ${intake.goal_secondary}
-Experience level: ${intake.experience_level}
-Equipment: ${intake.equipment}
-Training days per week: ${intake.training_days_per_week}
-Session length: ${intake.session_length_mins} minutes
-Injuries/limitations: ${intake.injuries_limitations || 'none'}
-Weight management goal: ${intake.weight_management_goal}
-Dietary restrictions: ${intake.dietary_restrictions?.join(', ') || 'none'}
-Foods to avoid: ${intake.foods_to_avoid || 'none'}
-Nutrition approach: ${intake.nutrition_approach}
-Avg sleep hours: ${intake.avg_sleep_hours}
-Sleep issues: ${intake.sleep_issue}
-Caffeine after noon: ${intake.caffeine_after_noon}
-Phone in bedroom: ${intake.phone_in_bedroom}
-Filters water: ${intake.filters_water}
-Morning sunlight: ${intake.morning_sunlight}
-Non-stick cookware: ${intake.nonstick_cookware}
-
-PROGRAM REQUIREMENTS:
-- Apply Mifflin-St Jeor equation to calculate daily calorie target
-- Protein: 1g per lb of ideal bodyweight
-- 12-week program with 3 blocks of 4 weeks
-- RIR progression: Week 1=3-4, Week 2=2-3, Week 3=1-2, Week 4=7-8 (deload)
-- Match equipment constraints strictly
-- Apply stability-power principle to all exercise selection
-- Full gym = Upper/Lower or Push/Pull/Lower split based on days available
-- Home/bands = Full body 3x per week with rep/iso/band day rotation
-- Include warm-up and recovery protocols
-- Generate meal plan matching their calorie target, weight goal, and dietary restrictions
-- Apply carb cycling (high on training days, low on rest days)
-- Generate sleep protocol based on their specific sleep data
-- Generate environment priority list based on their audit answers
-
-Respond ONLY with valid JSON matching this exact structure:
-{
-  "program_name": "string",
-  "program_type": "string",
-  "write_up": {
-    "greeting": "string",
-    "goals": ["string"],
-    "approach": ["string"]
-  },
-  "nutrition": {
-    "daily_calories": number,
-    "protein_g": number,
-    "carbs_g_training": number,
-    "carbs_g_rest": number,
-    "fat_g": number,
-    "approach": "string",
-    "sample_training_day": {
-      "breakfast": {"description": "string", "protein_g": number, "carbs_g": number, "fat_g": number, "calories": number},
-      "shake": {"description": "string", "protein_g": number, "carbs_g": number, "fat_g": number, "calories": number},
-      "lunch": {"description": "string", "protein_g": number, "carbs_g": number, "fat_g": number, "calories": number},
-      "dinner": {"description": "string", "protein_g": number, "carbs_g": number, "fat_g": number, "calories": number},
-      "dessert": {"description": "string", "protein_g": number, "carbs_g": number, "fat_g": number, "calories": number}
-    },
-    "sample_rest_day": {
-      "breakfast": {"description": "string", "protein_g": number, "carbs_g": number, "fat_g": number, "calories": number},
-      "shake": {"description": "string", "protein_g": number, "carbs_g": number, "fat_g": number, "calories": number},
-      "lunch": {"description": "string", "protein_g": number, "carbs_g": number, "fat_g": number, "calories": number},
-      "dinner": {"description": "string", "protein_g": number, "carbs_g": number, "fat_g": number, "calories": number},
-      "dessert": {"description": "string", "protein_g": number, "carbs_g": number, "fat_g": number, "calories": number}
-    }
-  },
-  "training": {
-    "split": "string",
-    "weekly_schedule": {
-      "day_1": "string",
-      "day_2": "string",
-      "day_3": "string",
-      "day_4": "string",
-      "day_5": "string",
-      "day_6": "string",
-      "day_7": "string"
-    },
-    "blocks": [
-      {
-        "block": 1,
-        "weeks": "1-4",
-        "days": [
-          {
-            "day": "string",
-            "focus": "string",
-            "exercises": [
-              {
-                "name": "string",
-                "sets": number,
-                "reps": "string",
-                "rir_week1": "string",
-                "rir_week2": "string",
-                "rir_week3": "string",
-                "rir_week4": "string",
-                "rest": "string",
-                "note": "string",
-                "superset_with": "string or null"
-              }
-            ]
-          }
-        ]
-      }
-    ]
-  },
-  "sleep_protocol": {
-    "morning": ["string"],
-    "evening": ["string"],
-    "sleep_environment": ["string"],
-    "priority_fixes": ["string"]
-  },
-  "environment_protocol": {
-    "immediate_wins": ["string"],
-    "short_term": ["string"],
-    "long_term": ["string"]
-  }
-}`
+var PROMPT = function(intake, profile) {
+  return 'You are the Rallis Regimen program generator. Generate a complete personalized program as valid JSON only. No text before or after the JSON.\n\nMEMBER:\nName: ' + (profile.full_name || profile.first_name || 'Member') + '\nAge: ' + intake.age + '\nSex: ' + intake.sex + '\nCurrent weight: ' + intake.current_weight_lbs + ' lbs\nIdeal weight: ' + intake.ideal_weight_lbs + ' lbs\nPrimary goal: ' + intake.goal_primary + '\nSecondary goal: ' + intake.goal_secondary + '\nExperience: ' + intake.experience_level + '\nEquipment: ' + intake.equipment + '\nTraining days/week: ' + intake.training_days_per_week + '\nSession length: ' + intake.session_length_mins + ' min\nInjuries: ' + (intake.injuries_limitations || 'none') + '\nWeight goal: ' + intake.weight_management_goal + '\nDietary restrictions: ' + ((intake.dietary_restrictions && intake.dietary_restrictions.join) ? intake.dietary_restrictions.join(', ') : 'none') + '\nFoods to avoid: ' + (intake.foods_to_avoid || 'none') + '\nNutrition approach: ' + intake.nutrition_approach + '\nTravel frequency: ' + (intake.travel_frequency || 'rarely') + '\nFood preferences: ' + (intake.food_preferences || 'none') + '\nSleep hours: ' + intake.avg_sleep_hours + '\nSleep issues: ' + (intake.sleep_issue || 'none') + '\nCaffeine after noon: ' + intake.caffeine_after_noon + '\nPhone in bedroom: ' + intake.phone_in_bedroom + '\nFilters water: ' + intake.filters_water + '\nMorning sunlight: ' + intake.morning_sunlight + '\nNon-stick cookware: ' + intake.nonstick_cookware + '\nSuccess vision: ' + (intake.success_vision || 'not provided') + '\n\nGenerate a program following Rallis Regimen methodology. Use RIR progression (W1:3-4, W2:2-3, W3:1-2, W4:deload 7-8). Match equipment strictly. Apply Mifflin-St Jeor for calories. Protein 1g per lb ideal bodyweight. Carb cycle (high training days, low rest days).\n\nRespond with ONLY this JSON structure:\n{"program_name":"string","program_type":"string","write_up":{"greeting":"string","goals":["string"],"approach":["string"]},"nutrition":{"daily_calories":0,"protein_g":0,"carbs_g_training":0,"carbs_g_rest":0,"fat_g":0,"approach":"string","sample_training_day":{"breakfast":{"description":"string","protein_g":0,"carbs_g":0,"fat_g":0,"calories":0},"shake":{"description":"string","protein_g":0,"carbs_g":0,"fat_g":0,"calories":0},"lunch":{"description":"string","protein_g":0,"carbs_g":0,"fat_g":0,"calories":0},"dinner":{"description":"string","protein_g":0,"carbs_g":0,"fat_g":0,"calories":0},"dessert":{"description":"string","protein_g":0,"carbs_g":0,"fat_g":0,"calories":0}},"sample_rest_day":{"breakfast":{"description":"string","protein_g":0,"carbs_g":0,"fat_g":0,"calories":0},"shake":{"description":"string","protein_g":0,"carbs_g":0,"fat_g":0,"calories":0},"lunch":{"description":"string","protein_g":0,"carbs_g":0,"fat_g":0,"calories":0},"dinner":{"description":"string","protein_g":0,"carbs_g":0,"fat_g":0,"calories":0},"dessert":{"description":"string","protein_g":0,"carbs_g":0,"fat_g":0,"calories":0}}},"training":{"split":"string","weekly_schedule":{"day_1":"string","day_2":"string","day_3":"string","day_4":"string","day_5":"string","day_6":"string","day_7":"string"},"blocks":[{"block":1,"weeks":"1-4","days":[{"day":"string","focus":"string","type":"string","exercises":[{"name":"string","sets":3,"reps":"string","rir_week1":"string","rest":"string","note":"string"}]}]}]},"sleep_protocol":{"morning":["string"],"evening":["string"],"sleep_environment":["string"],"priority_fixes":["string"]},"environment_protocol":{"immediate_wins":["string"],"short_term":["string"],"long_term":["string"]}}';
+};
 
 export default async function handler(req, res) {
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' })
-  }
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
-  const { userId } = req.body
+  var userId = req.body.userId;
+  var intakeData = req.body.intake;
 
-  if (!userId) {
-    return res.status(400).json({ error: 'User ID required' })
-  }
+  if (!userId) return res.status(400).json({ error: 'userId required' });
 
-  const supabase = getServerSupabase()
+  var supabase = getSupabase();
 
   try {
-    // Fetch member data
-    const [profileRes, intakeRes] = await Promise.all([
-      supabase.from('profiles').select('*').eq('id', userId).single(),
-      supabase.from('intake_submissions').select('*').eq('user_id', userId).single()
-    ])
+    // Get intake from DB if not passed directly
+    var intake = intakeData;
+    var profile = {};
 
-    if (intakeRes.error || !intakeRes.data) {
-      return res.status(404).json({ error: 'Intake not found' })
+    if (!intake) {
+      var intakeRes = await supabase.from('intake_submissions').select('*').eq('user_id', userId).order('submitted_at', { ascending: false }).limit(1).single();
+      if (intakeRes.error || !intakeRes.data) return res.status(404).json({ error: 'Intake not found' });
+      intake = intakeRes.data;
     }
 
-    const intake = intakeRes.data
-    const profile = profileRes.data || {}
+    var profileRes = await supabase.from('profiles').select('*').eq('id', userId).single();
+    if (profileRes.data) profile = profileRes.data;
 
-    // Create program record with generating status
-    const { data: programRecord, error: createError } = await supabase
-      .from('generated_programs')
-      .insert({
-        user_id: userId,
-        status: 'generating',
-        generation_month: new Date().toISOString().slice(0, 7)
-      })
-      .select()
-      .single()
+    // Create pending program record
+    var insertResult = await supabase.from('generated_programs').insert({
+      user_id: userId,
+      status: 'generating',
+      generation_month: new Date().toISOString().slice(0, 7)
+    }).select().single();
 
-    if (createError) throw createError
+    var programId = insertResult.data ? insertResult.data.id : null;
 
-    // Call Claude to generate the program
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
+    // Call Claude
+    var response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -176,57 +57,55 @@ export default async function handler(req, res) {
         'anthropic-version': '2023-06-01'
       },
       body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
+        model: 'claude-sonnet-4-6',
         max_tokens: 8000,
-        messages: [{
-          role: 'user',
-          content: GENERATION_PROMPT(intake, profile)
-        }]
+        messages: [{ role: 'user', content: PROMPT(intake, profile) }]
       })
-    })
+    });
 
-    if (!response.ok) throw new Error('Generation API failed')
-
-    const data = await response.json()
-    const rawText = data.content?.[0]?.text || ''
-
-    // Parse JSON from response
-    const jsonMatch = rawText.match(/\{[\s\S]*\}/)
-    if (!jsonMatch) throw new Error('No JSON in response')
-
-    const generated = JSON.parse(jsonMatch[0])
-
-    // Save generated program
-    await supabase
-      .from('generated_programs')
-      .update({
-        program_name: generated.program_name,
-        program_type: generated.program_type,
-        block_number: 1,
-        write_up: generated.write_up,
-        training_program: generated.training,
-        meal_plan: generated.nutrition,
-        sleep_protocol: generated.sleep_protocol,
-        environment_audit: generated.environment_protocol,
-        status: 'ready',
-        generated_at: new Date().toISOString()
-      })
-      .eq('id', programRecord.id)
-
-    return res.status(200).json({ success: true, programId: programRecord.id })
-
-  } catch (error) {
-    console.error('Generation error:', error)
-
-    // Mark as failed
-    if (userId) {
-      await supabase
-        .from('generated_programs')
-        .update({ status: 'failed' })
-        .eq('user_id', userId)
-        .eq('status', 'generating')
+    if (!response.ok) {
+      var errText = await response.text();
+      console.error('Claude error:', errText);
+      throw new Error('Generation API failed: ' + errText);
     }
 
-    return res.status(500).json({ error: 'Program generation failed' })
+    var data = await response.json();
+    var rawText = data.content && data.content[0] ? data.content[0].text : '';
+
+    // Extract JSON
+    var jsonMatch = rawText.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) throw new Error('No JSON in response');
+
+    var generated = JSON.parse(jsonMatch[0]);
+
+    // Save to DB
+    var updateData = {
+      program_name: generated.program_name,
+      program_type: generated.program_type,
+      block_number: 1,
+      write_up: generated.write_up,
+      training_program: generated.training,
+      meal_plan: generated.nutrition,
+      sleep_protocol: generated.sleep_protocol,
+      environment_audit: generated.environment_protocol,
+      status: 'ready',
+      generated_at: new Date().toISOString()
+    };
+
+    if (programId) {
+      await supabase.from('generated_programs').update(updateData).eq('id', programId);
+    } else {
+      updateData.user_id = userId;
+      await supabase.from('generated_programs').insert(updateData);
+    }
+
+    return res.status(200).json({ success: true });
+
+  } catch (error) {
+    console.error('Generation error:', error);
+    if (userId) {
+      await supabase.from('generated_programs').update({ status: 'failed' }).eq('user_id', userId).eq('status', 'generating');
+    }
+    return res.status(500).json({ error: error.message || 'Generation failed' });
   }
 }
