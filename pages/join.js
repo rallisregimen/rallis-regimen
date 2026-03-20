@@ -28,7 +28,7 @@ var styles = [
   ".save-badge{display:inline-block;background:var(--gold);color:white;font-family:Barlow Condensed,sans-serif;font-size:10px;font-weight:700;letter-spacing:.15em;text-transform:uppercase;padding:3px 8px;margin-top:4px;}",
   ".fg{margin-bottom:18px;}",
   ".fl{font-family:Barlow Condensed,sans-serif;font-size:12px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--charcoal);display:block;margin-bottom:7px;}",
-  "input[type=email],input[type=text]{width:100%;background:white;border:1.5px solid var(--border);padding:13px 16px;font-family:Barlow,sans-serif;font-size:15px;font-weight:300;color:var(--charcoal);outline:none;transition:border-color .2s;}",
+  "input{width:100%;background:white;border:1.5px solid var(--border);padding:13px 16px;font-family:Barlow,sans-serif;font-size:15px;font-weight:300;color:var(--charcoal);outline:none;transition:border-color .2s;}",
   "input:focus{border-color:var(--maroon);}",
   ".promo-row{display:flex;gap:8px;}",
   ".promo-row input{flex:1;}",
@@ -46,6 +46,8 @@ var styles = [
   ".submit-btn:hover:not(:disabled){background:var(--maroon-dark);}",
   ".submit-btn:disabled{opacity:.4;cursor:not-allowed;}",
   ".note{font-size:11px;font-weight:300;color:var(--mid);margin-top:12px;text-align:center;line-height:1.6;}",
+  ".login-link{font-size:13px;font-weight:300;color:var(--mid);text-align:center;margin-top:16px;}",
+  ".login-link a{color:var(--maroon);cursor:pointer;text-decoration:underline;}",
   ".err{color:#C0392B;font-size:12px;margin-top:6px;font-family:Barlow Condensed,sans-serif;font-weight:500;}",
   ".back{font-family:Barlow Condensed,sans-serif;font-size:12px;font-weight:500;letter-spacing:.1em;text-transform:uppercase;color:var(--mid);margin-bottom:32px;cursor:pointer;border:none;background:none;text-decoration:underline;}",
   "@media(max-width:768px){.wrap{grid-template-columns:1fr;}.left,.right{padding:48px 24px;}}"
@@ -68,8 +70,9 @@ var ADMIN_CODE = 'RALLISTEST';
 export default function JoinPage() {
   var router = useRouter();
   var planState = useState('monthly'); var plan = planState[0]; var setPlan = planState[1];
-  var emailState = useState(''); var email = emailState[0]; var setEmail = emailState[1];
   var nameState = useState(''); var name = nameState[0]; var setName = nameState[1];
+  var emailState = useState(''); var email = emailState[0]; var setEmail = emailState[1];
+  var passState = useState(''); var password = passState[0]; var setPassword = passState[1];
   var waiverState = useState(false); var waiver = waiverState[0]; var setWaiver = waiverState[1];
   var promoState = useState(''); var promo = promoState[0]; var setPromo = promoState[1];
   var promoOkState = useState(false); var promoOk = promoOkState[0]; var setPromoOk = promoOkState[1];
@@ -83,12 +86,13 @@ export default function JoinPage() {
 
   async function handleJoin() {
     if (!email || !name) { setErr('Please enter your name and email.'); return; }
+    if (!password || password.length < 8) { setErr('Password must be at least 8 characters.'); return; }
     if (!waiver) { setErr('Please accept the liability waiver to continue.'); return; }
     setLoading(true); setErr('');
 
     if (promoOk) {
-      // Bypass: go directly to auth-callback which creates user and sends magic link
-      window.location.href = '/api/auth-callback?bypass=true&name=' + encodeURIComponent(name) + '&email=' + encodeURIComponent(email);
+      // Bypass: create account and go straight to intake
+      window.location.href = '/api/auth-callback?bypass=true&name=' + encodeURIComponent(name) + '&email=' + encodeURIComponent(email) + '&password=' + encodeURIComponent(password);
       return;
     }
 
@@ -96,7 +100,7 @@ export default function JoinPage() {
       var res = await fetch('/api/checkout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: email, name: name, plan: plan })
+        body: JSON.stringify({ email: email, name: name, password: password, plan: plan })
       });
       var data = await res.json();
       if (data.url) { window.location.href = data.url; }
@@ -149,6 +153,10 @@ export default function JoinPage() {
             <input type="email" value={email} onChange={function(e) { setEmail(e.target.value); }} placeholder="you@example.com" />
           </div>
           <div className="fg">
+            <label className="fl">Create Password</label>
+            <input type="password" value={password} onChange={function(e) { setPassword(e.target.value); }} placeholder="At least 8 characters" />
+          </div>
+          <div className="fg">
             <label className="fl">Promo Code</label>
             <div className="promo-row">
               <input type="text" value={promo} onChange={function(e) { setPromo(e.target.value); }} placeholder="Enter code" />
@@ -174,11 +182,12 @@ export default function JoinPage() {
           </div>
           {err && <div className="err">{err}</div>}
           <button className="submit-btn" onClick={handleJoin} disabled={loading || !waiver}>
-            {loading ? 'Redirecting...' : (promoOk ? 'Access My Program' : 'Start My Free Month')}
+            {loading ? 'Setting up your account...' : (promoOk ? 'Access My Program' : 'Start My Free Month')}
           </button>
           <p className="note">
             {promoOk ? 'Promo code applied. No payment required.' : 'Secure checkout via Stripe. Not charged for 30 days. Cancel before then and you will never be billed.'}
           </p>
+          <p className="login-link">Already a member? <a onClick={function() { router.push('/login'); }}>Log in here</a></p>
         </div>
       </div>
     </div>
