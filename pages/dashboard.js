@@ -306,19 +306,24 @@ export default function Dashboard() {
   useEffect(function() {
     async function loadData() {
       var authResult = await supabase.auth.getUser();
-      var u = authResult.data.user;
-      // For testing without auth, use demo data
+      var u = authResult.data && authResult.data.user ? authResult.data.user : null;
+
       if (!u) {
-        setProfile({ first_name: "Athlete" });
-        setProgram(DEMO_PROGRAM);
-        setLoading(false);
+        // Try refreshing the session first
+        var refreshResult = await supabase.auth.refreshSession();
+        u = refreshResult.data && refreshResult.data.user ? refreshResult.data.user : null;
+      }
+
+      if (!u) {
+        router.push('/login');
         return;
       }
+
       setUser(u);
       var profileResult = await supabase.from("profiles").select("*").eq("id", u.id).single();
       setProfile(profileResult.data || { first_name: "Athlete" });
       var programResult = await supabase.from("generated_programs").select("*").eq("user_id", u.id).order("generated_at", { ascending: false }).limit(1).single();
-      setProgram(programResult.data || DEMO_PROGRAM);
+      setProgram(programResult.data || null);
       setLoading(false);
     }
     loadData();
