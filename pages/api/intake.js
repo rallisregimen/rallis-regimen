@@ -13,9 +13,9 @@ export default async function handler(req, res) {
   var data = req.body;
   if (!data) return res.status(400).json({ error: 'No data provided' });
 
-  try {
-    var supabase = getSupabase();
+  var supabase = getSupabase();
 
+  try {
     var payload = {
       user_id: data.user_id || null,
       first_name: data.first_name || null,
@@ -62,13 +62,23 @@ export default async function handler(req, res) {
       return res.status(500).json({ error: result.error.message });
     }
 
-    // Trigger program generation in the background
+    // Trigger generation - wait for it so we can report success/failure
     if (data.user_id) {
-      fetch(process.env.NEXT_PUBLIC_APP_URL + '/api/generate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId: data.user_id, intake: data })
-      }).catch(function(e) { console.error('Generate trigger error:', e); });
+      try {
+        var genRes = await fetch((process.env.NEXT_PUBLIC_APP_URL || '') + '/api/generate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId: data.user_id, intake: payload })
+        });
+        if (!genRes.ok) {
+          var genErr = await genRes.text();
+          console.error('Generation failed:', genErr);
+          // Still return success for intake - user can regenerate from dashboard
+        }
+      } catch (genError) {
+        console.error('Generation trigger error:', genError);
+        // Still return success for intake
+      }
     }
 
     return res.status(200).json({ success: true });
