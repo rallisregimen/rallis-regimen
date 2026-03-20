@@ -127,7 +127,9 @@ var CHAT_SUGGESTIONS = [
 var NAV = [
   { id: "overview", icon: "◈", label: "Overview" },
   { id: "training", icon: "⚡", label: "Training" },
-  { id: "nutrition", icon: "🥩", label: "Nutrition" },
+  { id: "nutrition", icon: "N", label: "Nutrition" },
+  { id: "sleep", icon: "Z", label: "Sleep" },
+  { id: "environment", icon: "E", label: "Environment" },
   { id: "chat", icon: "R", label: "The Regimen" },
   { id: "profile", icon: "◎", label: "Profile" },
 ];
@@ -640,30 +642,139 @@ export default function Dashboard() {
                       );
                     })}
                   </div>
-                  {program.meal_plan.sample_training_day && Object.entries(program.meal_plan.sample_training_day).map(function(entry) {
-                    var meal = entry[0];
-                    var data = entry[1];
+                  {program.meal_plan.approach && (
+                    <div className="card" style={{ marginBottom: 16 }}>
+                      <div className="card-body">{program.meal_plan.approach}</div>
+                    </div>
+                  )}
+                  {program.meal_plan.sample_training_day && (
+                    <div>
+                      <div style={{ fontFamily: "Barlow Condensed", fontSize: 12, fontWeight: 700, letterSpacing: "0.15em", textTransform: "uppercase", color: "var(--gold)", marginBottom: 12, marginTop: 8 }}>Training Day</div>
+                      {Object.entries(program.meal_plan.sample_training_day).map(function(entry) {
+                        var meal = entry[0];
+                        var data = entry[1];
+                        if (!data || !data.description) return null;
+                        return (
+                          <div className="meal-card" key={meal}>
+                            <div className="meal-name">{meal.charAt(0).toUpperCase() + meal.slice(1)}</div>
+                            <div className="meal-desc">{data.description}</div>
+                            <div className="meal-macros">
+                              <div className="meal-macro"><strong>{data.protein_g}g</strong> protein</div>
+                              <div className="meal-macro"><strong>{data.carbs_g}g</strong> carbs</div>
+                              <div className="meal-macro"><strong>{data.fat_g}g</strong> fat</div>
+                              <div className="meal-macro"><strong>{data.calories}</strong> cal</div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                  {program.meal_plan.sample_rest_day && (
+                    <div>
+                      <div style={{ fontFamily: "Barlow Condensed", fontSize: 12, fontWeight: 700, letterSpacing: "0.15em", textTransform: "uppercase", color: "var(--gold)", marginBottom: 12, marginTop: 20 }}>Rest Day</div>
+                      {Object.entries(program.meal_plan.sample_rest_day).map(function(entry) {
+                        var meal = entry[0];
+                        var data = entry[1];
+                        if (!data || !data.description) return null;
+                        return (
+                          <div className="meal-card" key={meal}>
+                            <div className="meal-name">{meal.charAt(0).toUpperCase() + meal.slice(1)}</div>
+                            <div className="meal-desc">{data.description}</div>
+                            <div className="meal-macros">
+                              <div className="meal-macro"><strong>{data.protein_g}g</strong> protein</div>
+                              <div className="meal-macro"><strong>{data.carbs_g}g</strong> carbs</div>
+                              <div className="meal-macro"><strong>{data.fat_g}g</strong> fat</div>
+                              <div className="meal-macro"><strong>{data.calories}</strong> cal</div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="card">
+                  <div className="card-body">Your nutrition plan is being generated. Check back in a moment.</div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* SLEEP */}
+          {activeTab === "sleep" && (
+            <div>
+              <div className="dash-page-title"><em>Sleep</em> Protocol</div>
+              <div className="dash-page-sub">Built around your schedule and current habits. These are your highest-impact changes.</div>
+              {program && program.sleep_protocol ? (
+                <div>
+                  {[
+                    { key: "morning", label: "Morning Routine" },
+                    { key: "evening", label: "Evening Routine" },
+                    { key: "sleep_environment", label: "Sleep Environment" },
+                    { key: "priority_fixes", label: "Priority Fixes For You" },
+                  ].map(function(section) {
+                    var items = program.sleep_protocol[section.key];
+                    if (!items || !items.length) return null;
                     return (
-                      <div className="meal-card" key={meal}>
-                        <div className="meal-name">{meal.charAt(0).toUpperCase() + meal.slice(1)}</div>
-                        <div className="meal-desc">{data.description}</div>
-                        <div className="meal-macros">
-                          <div className="meal-macro"><strong>{data.protein_g}g</strong> protein</div>
-                          <div className="meal-macro"><strong>{data.carbs_g}g</strong> carbs</div>
-                          <div className="meal-macro"><strong>{data.fat_g}g</strong> fat</div>
-                          <div className="meal-macro"><strong>{data.calories}</strong> cal</div>
-                        </div>
+                      <div className="card" key={section.key} style={{ marginBottom: 12 }}>
+                        <div className="card-label">{section.label}</div>
+                        {items.map(function(item, i) {
+                          return (
+                            <div key={i} style={{ display: "flex", gap: 12, alignItems: "flex-start", padding: "10px 0", borderBottom: i < items.length - 1 ? "1px solid var(--border)" : "none" }}>
+                              <div style={{ width: 6, height: 6, background: "var(--maroon)", borderRadius: "50%", minWidth: 6, marginTop: 7 }}></div>
+                              <div style={{ fontSize: 14, fontWeight: 300, color: "var(--mid)", lineHeight: 1.6 }}>{item}</div>
+                            </div>
+                          );
+                        })}
                       </div>
                     );
                   })}
                 </div>
               ) : (
                 <div className="card">
-                  <div className="card-body">Your nutrition plan will appear here once your program is generated. Complete your intake form to get started.</div>
+                  <div className="card-body">Your sleep protocol is being generated. Check back in a moment.</div>
                 </div>
               )}
             </div>
           )}
+
+          {/* ENVIRONMENT */}
+          {activeTab === "environment" && (
+            <div>
+              <div className="dash-page-title"><em>Environment</em> Audit</div>
+              <div className="dash-page-sub">Based on your intake answers. Prioritized by impact — start with the immediate wins.</div>
+              {program && program.environment_audit ? (
+                <div>
+                  {[
+                    { key: "immediate_wins", label: "Immediate Wins", color: "var(--maroon)" },
+                    { key: "short_term", label: "Short Term", color: "var(--gold)" },
+                    { key: "long_term", label: "Long Term", color: "var(--mid)" },
+                  ].map(function(section) {
+                    var items = program.environment_audit[section.key];
+                    if (!items || !items.length) return null;
+                    return (
+                      <div className="card" key={section.key} style={{ marginBottom: 12 }}>
+                        <div className="card-label" style={{ color: section.color }}>{section.label}</div>
+                        {items.map(function(item, i) {
+                          return (
+                            <div key={i} style={{ display: "flex", gap: 12, alignItems: "flex-start", padding: "10px 0", borderBottom: i < items.length - 1 ? "1px solid var(--border)" : "none" }}>
+                              <div style={{ width: 6, height: 6, background: section.color, borderRadius: "50%", minWidth: 6, marginTop: 7 }}></div>
+                              <div style={{ fontSize: 14, fontWeight: 300, color: "var(--mid)", lineHeight: 1.6 }}>{item}</div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="card">
+                  <div className="card-body">Your environment audit is being generated. Check back in a moment.</div>
+                </div>
+              )}
+            </div>
+          )}
+
 
           {/* CHAT */}
           {activeTab === "chat" && (
