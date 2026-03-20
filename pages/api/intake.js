@@ -16,6 +16,17 @@ export default async function handler(req, res) {
   var supabase = getSupabase();
 
   try {
+    // Create/update profile server-side using service key (bypasses RLS)
+    if (data.user_id) {
+      await supabase.from('profiles').upsert({
+        id: data.user_id,
+        email: data.email || null,
+        full_name: data.first_name || null,
+        subscription_status: 'active',
+        updated_at: new Date().toISOString()
+      });
+    }
+
     var payload = {
       user_id: data.user_id || null,
       first_name: data.first_name || null,
@@ -62,22 +73,17 @@ export default async function handler(req, res) {
       return res.status(500).json({ error: result.error.message });
     }
 
-    // Trigger generation - wait for it so we can report success/failure
+    // Trigger program generation
     if (data.user_id) {
       try {
-        var genRes = await fetch((process.env.NEXT_PUBLIC_APP_URL || '') + '/api/generate', {
+        var appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://www.rallisregimen.com';
+        await fetch(appUrl + '/api/generate', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ userId: data.user_id, intake: payload })
         });
-        if (!genRes.ok) {
-          var genErr = await genRes.text();
-          console.error('Generation failed:', genErr);
-          // Still return success for intake - user can regenerate from dashboard
-        }
       } catch (genError) {
         console.error('Generation trigger error:', genError);
-        // Still return success for intake
       }
     }
 
