@@ -16,21 +16,7 @@ export default async function handler(req, res) {
   var supabase = getSupabase();
 
   try {
-    // Upsert profile server-side
-    if (data.user_id && data.email) {
-      var profileResult = await supabase.from('profiles').upsert({
-        id: data.user_id,
-        email: data.email,
-        full_name: data.first_name || null,
-        subscription_status: 'active',
-        updated_at: new Date().toISOString()
-      });
-      if (profileResult.error) {
-        console.error('Profile upsert error:', JSON.stringify(profileResult.error));
-      }
-    }
-
-    // Only include columns that exist in intake_submissions
+    // Build intake payload
     var payload = {
       user_id: data.user_id || null,
       first_name: data.first_name || null,
@@ -80,7 +66,10 @@ export default async function handler(req, res) {
 
     console.log('Intake saved successfully for user:', payload.user_id);
 
-    // Trigger generation
+    // Return success immediately - trigger generation in background
+    res.status(200).json({ success: true });
+
+    // Fire and forget - profile + generation after response sent
     if (data.user_id) {
       var appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://www.rallisregimen.com';
       fetch(appUrl + '/api/generate', {
@@ -89,8 +78,6 @@ export default async function handler(req, res) {
         body: JSON.stringify({ userId: data.user_id })
       }).catch(function(e) { console.error('Generate trigger error:', e.message); });
     }
-
-    return res.status(200).json({ success: true });
   } catch (err) {
     console.error('Intake API error:', err.message, err.stack);
     return res.status(500).json({ error: 'Failed to save intake: ' + err.message });
