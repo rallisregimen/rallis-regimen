@@ -3,7 +3,7 @@ import { useRouter } from "next/router";
 import { supabase } from "../lib/supabase";
 
 var styles = [
-  "@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;0,900;1,400&family=Barlow+Condensed:wght@400;500;600;700&family=Barlow:wght@300;400;500&display=swap');",
+  "@import url(https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;0,900;1,400&family=Barlow+Condensed:wght@400;500;600;700&family=Barlow:wght@300;400;500&display=swap);",
   "*{box-sizing:border-box;margin:0;padding:0;}",
   ":root{--maroon:#7B1A38;--maroon-dark:#5C1229;--maroon-light:#F2E8EC;--off-white:#F7F4EF;--charcoal:#1A1A1A;--mid:#4A4A4A;--gold:#B8943A;--border:rgba(123,26,56,0.12);}",
   "body{background:var(--off-white);font-family:'Barlow',sans-serif;font-weight:300;}",
@@ -304,29 +304,39 @@ export default function Dashboard() {
   }
 
   useEffect(function() {
-    async function loadData() {
-      var authResult = await supabase.auth.getUser();
-      var u = authResult.data && authResult.data.user ? authResult.data.user : null;
-
-      if (!u) {
-        // Try refreshing the session first
-        var refreshResult = await supabase.auth.refreshSession();
-        u = refreshResult.data && refreshResult.data.user ? refreshResult.data.user : null;
+    var authListener = supabase.auth.onAuthStateChange(function(event, session) {
+      if (session && session.user) {
+        var u = session.user;
+        setUser(u);
+        supabase.from("profiles").select("*").eq("id", u.id).single().then(function(profileResult) {
+          setProfile(profileResult.data || { first_name: "Athlete" });
+        });
+        supabase.from("generated_programs").select("*").eq("user_id", u.id).order("generated_at", { ascending: false }).limit(1).single().then(function(programResult) {
+          setProgram(programResult.data || null);
+          setLoading(false);
+        });
+      } else {
+        setTimeout(async function() {
+          var result = await supabase.auth.getSession();
+          if (result.data && result.data.session) {
+            var u = result.data.session.user;
+            setUser(u);
+            var profileResult = await supabase.from("profiles").select("*").eq("id", u.id).single();
+            setProfile(profileResult.data || { first_name: "Athlete" });
+            var programResult = await supabase.from("generated_programs").select("*").eq("user_id", u.id).order("generated_at", { ascending: false }).limit(1).single();
+            setProgram(programResult.data || null);
+            setLoading(false);
+          } else {
+            router.push('/login');
+          }
+        }, 500);
       }
-
-      if (!u) {
-        router.push('/login');
-        return;
+    });
+    return function() {
+      if (authListener && authListener.data && authListener.data.subscription) {
+        authListener.data.subscription.unsubscribe();
       }
-
-      setUser(u);
-      var profileResult = await supabase.from("profiles").select("*").eq("id", u.id).single();
-      setProfile(profileResult.data || { first_name: "Athlete" });
-      var programResult = await supabase.from("generated_programs").select("*").eq("user_id", u.id).order("generated_at", { ascending: false }).limit(1).single();
-      setProgram(programResult.data || null);
-      setLoading(false);
-    }
-    loadData();
+    };
   }, []);
 
   useEffect(function() {
@@ -904,3 +914,4 @@ export default function Dashboard() {
     </div>
   );
 }
+  
