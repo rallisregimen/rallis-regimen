@@ -6,6 +6,7 @@ export default async function handler(req, res) {
 
   var email = req.body.email;
   var name = req.body.name;
+  var password = req.body.password;
   var plan = req.body.plan || 'monthly';
 
   if (!email) return res.status(400).json({ error: 'Email required' });
@@ -28,10 +29,14 @@ export default async function handler(req, res) {
         trial_settings: { end_behavior: { missing_payment_method: 'cancel' } }
       },
       payment_method_collection: 'always',
-      // After payment, go to auth-callback which creates the user and sends magic link
       success_url: process.env.NEXT_PUBLIC_APP_URL + '/api/auth-callback?session_id={CHECKOUT_SESSION_ID}',
       cancel_url: process.env.NEXT_PUBLIC_APP_URL + '/join?cancelled=true',
-      metadata: { email: email, name: name || '', plan: plan }
+      metadata: {
+        email: email,
+        name: name || '',
+        password: password || '',
+        plan: plan
+      }
     });
 
     return res.status(200).json({ url: session.url });
