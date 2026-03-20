@@ -92,7 +92,6 @@ export default function JoinPage() {
     setLoading(true); setErr('');
 
     if (promoOk) {
-      // BYPASS: sign up directly with Supabase, then go to intake
       try {
         // Try sign up first
         var signUpResult = await supabase.auth.signUp({
@@ -102,25 +101,18 @@ export default function JoinPage() {
         });
 
         if (signUpResult.error) {
-          // If user exists, try signing in instead
+          // If user exists, sign in instead
           if (signUpResult.error.message && signUpResult.error.message.includes('already registered')) {
             var signInResult = await supabase.auth.signInWithPassword({ email: email, password: password });
             if (signInResult.error) throw signInResult.error;
           } else {
             throw signUpResult.error;
           }
-        }
-
-        // Create profile record
-        var user = signUpResult.data && signUpResult.data.user ? signUpResult.data.user : null;
-        if (user) {
-          await supabase.from('profiles').upsert({
-            id: user.id,
-            email: email,
-            full_name: name,
-            subscription_status: 'active',
-            updated_at: new Date().toISOString()
-          });
+        } else {
+          // Sign in after signup to guarantee session
+        var signInAfter = await supabase.auth.signInWithPassword({ email: email, password: password });
+        if (signInAfter.error) {
+          console.error('Sign in after signup failed:', signInAfter.error);
         }
 
         router.push('/intake');
