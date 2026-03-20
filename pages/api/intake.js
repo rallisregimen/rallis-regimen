@@ -16,17 +16,21 @@ export default async function handler(req, res) {
   var supabase = getSupabase();
 
   try {
-    // Create/update profile server-side using service key (bypasses RLS)
-    if (data.user_id) {
-      await supabase.from('profiles').upsert({
+    // Upsert profile server-side
+    if (data.user_id && data.email) {
+      var profileResult = await supabase.from('profiles').upsert({
         id: data.user_id,
-        email: data.email || null,
+        email: data.email,
         full_name: data.first_name || null,
         subscription_status: 'active',
         updated_at: new Date().toISOString()
       });
+      if (profileResult.error) {
+        console.error('Profile upsert error:', JSON.stringify(profileResult.error));
+      }
     }
 
+    // Only include columns that exist in intake_submissions
     var payload = {
       user_id: data.user_id || null,
       first_name: data.first_name || null,
@@ -66,30 +70,29 @@ export default async function handler(req, res) {
       submitted_at: new Date().toISOString()
     };
 
+    console.log('Inserting intake for user_id:', payload.user_id);
     var result = await supabase.from('intake_submissions').insert(payload);
 
     if (result.error) {
-      console.error('Intake insert error:', result.error);
+      console.error('Intake insert error:', JSON.stringify(result.error));
       return res.status(500).json({ error: result.error.message });
     }
 
-    // Trigger program generation
+    console.log('Intake saved successfully for user:', payload.user_id);
+
+    // Trigger generation
     if (data.user_id) {
-      try {
-        var appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://www.rallisregimen.com';
-        await fetch(appUrl + '/api/generate', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ userId: data.user_id, intake: payload })
-        });
-      } catch (genError) {
-        console.error('Generation trigger error:', genError);
-      }
+      var appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://www.rallisregimen.com';
+      fetch(appUrl + '/api/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: data.user_id })
+      }).catch(function(e) { console.error('Generate trigger error:', e.message); });
     }
 
     return res.status(200).json({ success: true });
   } catch (err) {
-    console.error('Intake API error:', err);
-    return res.status(500).json({ error: 'Failed to save intake' });
+    console.error('Intake API error:', err.message, err.stack);
+    return res.status(500).json({ error: 'Failed to save intake: ' + err.message });
   }
 }
