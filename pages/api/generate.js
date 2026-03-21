@@ -13,7 +13,7 @@ export const config = {
 
 var PROMPT = function(intake, profile) {
   var name = profile.full_name || profile.first_name || 'Member';
-  var days = intake.training_days_per_week || 4;
+  var days = parseInt(intake.training_days_per_week) || 4;
   var equipment = intake.equipment || 'full_gym';
   var sleepTime = intake.typical_bedtime || 'not specified';
   var wakeTime = intake.typical_wake_time || 'not specified';
@@ -26,12 +26,28 @@ var PROMPT = function(intake, profile) {
   var cleaning = intake.conventional_cleaning;
   var successVision = intake.success_vision || 'not provided';
   var restrictions = (intake.dietary_restrictions && intake.dietary_restrictions.join) ? intake.dietary_restrictions.join(', ') : 'none';
+  var idealWeight = parseFloat(intake.ideal_weight_lbs) || parseFloat(intake.current_weight_lbs) || 180;
+  var proteinTarget = Math.round(idealWeight);
 
-  var memberBlock = 'MEMBER: ' + name + ', Age ' + intake.age + ', ' + intake.sex + ', ' + intake.current_weight_lbs + 'lbs -> ' + intake.ideal_weight_lbs + 'lbs goal. Goal: ' + intake.goal_primary + '/' + intake.goal_secondary + '. Vision: ' + successVision + '. Experience: ' + intake.experience_level + '. Equipment: ' + equipment + '. ' + days + ' days/week, ' + intake.session_length_mins + 'min sessions. Injuries: ' + (intake.injuries_limitations || 'none') + '. Diet: ' + (intake.nutrition_approach || 'flexible') + ', restrictions: ' + restrictions + ', avoid: ' + (intake.foods_to_avoid || 'none') + '. Sleep: ' + intake.avg_sleep_hours + 'hrs, bedtime: ' + sleepTime + ', wake: ' + wakeTime + ', issues: ' + sleepIssue + '. Audit: caffeine_after_noon=' + caffeine + ', phone_bedroom=' + phone + ', filters_water=' + water + ', morning_sunlight=' + sunlight + ', nonstick=' + cookware + ', conventional_cleaning=' + cleaning;
+  // Determine split explicitly so Claude cannot get it wrong
+  var splitType;
+  var splitDesc;
+  if (days <= 3) {
+    splitType = 'FULL BODY';
+    splitDesc = 'Full body every session. Each session includes: 1 compound lower (squat or hinge), 1 horizontal push, 1 horizontal pull, 1 vertical push or pull, 2-3 accessories. Hit every major muscle group at least once across the week.';
+  } else if (days === 4) {
+    splitType = 'UPPER LOWER';
+    splitDesc = 'Alternate Upper and Lower days. Upper = chest, back, shoulders, biceps, triceps. Lower = quads, hamstrings, glutes, calves, abs. Schedule: Upper-Lower-rest-Upper-Lower-rest-rest or similar with rest days between same muscle groups.';
+  } else {
+    splitType = 'LOWER PULL PUSH';
+    splitDesc = 'Lower/Pull/Push split. LOWER days = quads, hamstrings, glutes, calves, abs. PULL days = lats, traps, rear delts, biceps (include both horizontal pull like rows AND vertical pull like pulldowns). PUSH days = chest, front delts, triceps (include both horizontal push like bench AND vertical push like overhead press). For ' + days + ' days schedule as: ' + (days === 5 ? 'Lower-Pull-Push-rest-Lower-rest-rest or Lower-Pull-Push-Lower-Pull-rest-rest' : 'Lower-Pull-Push-Lower-Pull-Push-rest') + '. Never schedule same muscle group back-to-back.';
+  }
 
-  var trainingRules = 'TRAINING: Generate EXACTLY ' + days + ' days. Equipment rule: home_bands/bodyweight_only = zero machines; dumbbells_only = zero barbells/machines. Split: 2-3 days = full body (compound lower + horiz push + horiz pull + vert push/pull each session); 4 days = Upper/Lower (upper=chest/back/shoulders/biceps/triceps, lower=quads/hams/glutes/calves/abs); 5-6 days = Lower/Pull/Push (PUSH=chest+front delts+triceps, PULL=lats+traps+rear delts+biceps, LOWER=quads+hams+glutes+calves+abs, 6 days=LPP twice). Movement patterns: push days include horizontal AND vertical push; pull days include horizontal AND vertical pull; lower days include quad-dominant AND hip-dominant. Rest spacing: never same muscle group back-to-back. LPP sequence: Lower-Pull-Push-rest. Success vision in exercise selection: ' + successVision;
+  var memberBlock = 'MEMBER: ' + name + ', Age ' + intake.age + ', ' + intake.sex + ', ' + intake.current_weight_lbs + 'lbs current, ' + idealWeight + 'lbs ideal. Goal: ' + intake.goal_primary + '/' + intake.goal_secondary + '. Vision: ' + successVision + '. Experience: ' + intake.experience_level + '. Equipment: ' + equipment + '. TRAINING DAYS: ' + days + ' (EXACTLY ' + days + ' training days, no more no less). Session length: ' + intake.session_length_mins + 'min. Injuries: ' + (intake.injuries_limitations || 'none') + '. Diet: ' + (intake.nutrition_approach || 'flexible') + ', restrictions: ' + restrictions + ', avoid: ' + (intake.foods_to_avoid || 'none') + '. Sleep: ' + intake.avg_sleep_hours + 'hrs, bedtime: ' + sleepTime + ', wake: ' + wakeTime + ', issues: ' + sleepIssue + '. Audit: caffeine_after_noon=' + caffeine + ', phone_bedroom=' + phone + ', filters_water=' + water + ', morning_sunlight=' + sunlight + ', nonstick=' + cookware + ', conventional_cleaning=' + cleaning;
 
-  var nutritionRules = 'NUTRITION: Mifflin-St Jeor TDEE, adjust for goal (-300-500 cut, +200-300 bulk). Protein=1g/lb ideal bodyweight. Training days: high carb, moderate fat. Rest days: low carb, HIGH fat (same total calories). 7-day meal plan, 5 meals/day (breakfast/shake/lunch/dinner/dessert). Every meal: protein_g, carbs_g, fat_g, calories all as real numbers never 0 or null. 5 meals per day MUST sum within 30cal of daily target. Vary meals across days.';
+  var trainingRules = 'TRAINING RULES:\n1. GENERATE EXACTLY ' + days + ' TRAINING DAYS. This is non-negotiable. Count them before outputting.\n2. USE SPLIT: ' + splitType + '. ' + splitDesc + '\n3. EQUIPMENT: ' + equipment + '. If home_bands/bodyweight_only = zero machines. If dumbbells_only = zero barbells/machines.\n4. MOVEMENT PATTERNS: Rotate horizontal/vertical for push and pull. Rotate quad-dominant/hip-dominant for lower.\n5. Include exercises that reflect success vision: ' + successVision + '.\n6. RIR progression: W1=3-4, W2=2-3, W3=1-2, W4=7-8 deload.';
+
+  var nutritionRules = 'NUTRITION RULES:\n1. Mifflin-St Jeor TDEE, adjust for goal (-300-500 cut, +200-300 bulk).\n2. PROTEIN TARGET: ' + proteinTarget + 'g (1g per lb of IDEAL bodyweight of ' + idealWeight + 'lbs). Use this exact number.\n3. Training days: higher carbs, moderate fat. Rest days: lower carbs, HIGHER fat. Total calories must be the SAME on both day types.\n4. MACRO MATH: Every single day in the meal plan must have 5 meals (breakfast/shake/lunch/dinner/dessert) that add up to within 30 calories of the daily target. Calculate each meal carefully. Never use 0 for any macro value.\n5. Vary meals across the 7 days - no identical meals on consecutive days.';
 
   var sleepRules = 'SLEEP: Use actual bedtime ' + sleepTime + ' and wake ' + wakeTime + ' (stay within 30min). Melatonin ONLY if sleep_issue includes trouble falling asleep (issue=' + sleepIssue + '). Cold exposure 1-3min only. Flag caffeine only if caffeine_after_noon=true (' + caffeine + '). Flag phone only if phone_bedroom=true (' + phone + '). Min 3 items per category.';
 
