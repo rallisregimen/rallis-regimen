@@ -129,7 +129,6 @@ var NAV = [
   { id: "training", icon: "⚡", label: "Training" },
   { id: "nutrition", icon: "N", label: "Nutrition" },
   { id: "sleep", icon: "Z", label: "Sleep" },
-  { id: "environment", icon: "E", label: "Environment" },
   { id: "chat", icon: "R", label: "The Regimen" },
   { id: "profile", icon: "◎", label: "Profile" },
 ];
@@ -556,7 +555,6 @@ export default function Dashboard() {
                   <button className="card-btn" onClick={regenerateProgram} style={{ marginBottom: 8 }}>Regenerate Program</button>
                   <button className="card-btn ghost" onClick={function() { setActiveTab("profile"); }}>Update Profile</button>
                 </div>
-              </div>
               {regenMessage && (
                 <div style={{ marginTop: 16, padding: "12px 16px", background: "var(--maroon-light)", border: "1px solid rgba(123,26,56,.2)", fontSize: 14, fontWeight: 300, color: "var(--charcoal)" }}>
                   {regenMessage}
@@ -812,43 +810,6 @@ export default function Dashboard() {
               ) : (
                 <div className="card">
                   <div className="card-body">Your sleep protocol is being generated. Check back in a moment.</div>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* ENVIRONMENT */}
-          {activeTab === "environment" && (
-            <div>
-              <div className="dash-page-title"><em>Environment</em> Audit</div>
-              <div className="dash-page-sub">Based on your intake answers. Prioritized by impact — start with the immediate wins.</div>
-              {program && program.environment_audit ? (
-                <div>
-                  {[
-                    { key: "immediate_wins", label: "Immediate Wins", color: "var(--maroon)" },
-                    { key: "short_term", label: "Short Term", color: "var(--gold)" },
-                    { key: "long_term", label: "Long Term", color: "var(--mid)" },
-                  ].map(function(section) {
-                    var items = program.environment_audit[section.key];
-                    if (!items || !items.length) return null;
-                    return (
-                      <div className="card" key={section.key} style={{ marginBottom: 12 }}>
-                        <div className="card-label" style={{ color: section.color }}>{section.label}</div>
-                        {items.map(function(item, i) {
-                          return (
-                            <div key={i} style={{ display: "flex", gap: 12, alignItems: "flex-start", padding: "10px 0", borderBottom: i < items.length - 1 ? "1px solid var(--border)" : "none" }}>
-                              <div style={{ width: 6, height: 6, background: section.color, borderRadius: "50%", minWidth: 6, marginTop: 7 }}></div>
-                              <div style={{ fontSize: 14, fontWeight: 300, color: "var(--mid)", lineHeight: 1.6 }}>{item}</div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    );
-                  })}
-                </div>
-              ) : (
-                <div className="card">
-                  <div className="card-body">Your environment audit is being generated. Check back in a moment.</div>
                 </div>
               )}
             </div>
