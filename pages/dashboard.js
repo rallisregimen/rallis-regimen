@@ -280,6 +280,24 @@ export default function Dashboard() {
   var regenMessage = regenState[0];
   var setRegenMessage = regenState[1];
 
+  var sleepChecksState = useState(function() {
+    try {
+      var saved = typeof window !== 'undefined' ? localStorage.getItem('sleep-checks') : null;
+      return saved ? JSON.parse(saved) : {};
+    } catch(e) { return {}; }
+  });
+  var sleepChecks = sleepChecksState[0];
+  var setSleepChecks = sleepChecksState[1];
+
+  function toggleSleepCheck(key) {
+    setSleepChecks(function(prev) {
+      var next = Object.assign({}, prev, {});
+      next[key] = !prev[key];
+      try { localStorage.setItem('sleep-checks', JSON.stringify(next)); } catch(e) {}
+      return next;
+    });
+  }
+
   var chatEndRef = useRef(null);
 
   async function regenerateProgram() {
@@ -755,7 +773,7 @@ export default function Dashboard() {
           {activeTab === "sleep" && (
             <div>
               <div className="dash-page-title"><em>Sleep</em> Protocol</div>
-              <div className="dash-page-sub">Built around your schedule and current habits. These are your highest-impact changes.</div>
+              <div className="dash-page-sub">Check off each habit as you build it. Your protocol is built around your schedule and current habits.</div>
               {program && program.sleep_protocol ? (
                 <div>
                   {[
@@ -770,10 +788,30 @@ export default function Dashboard() {
                       <div className="card" key={section.key} style={{ marginBottom: 12 }}>
                         <div className="card-label">{section.label}</div>
                         {items.map(function(item, i) {
+                          var checkKey = "sleep-" + section.key + "-" + i;
+                          var checked = sleepChecks[checkKey] || false;
                           return (
-                            <div key={i} style={{ display: "flex", gap: 12, alignItems: "flex-start", padding: "10px 0", borderBottom: i < items.length - 1 ? "1px solid var(--border)" : "none" }}>
-                              <div style={{ width: 6, height: 6, background: "var(--maroon)", borderRadius: "50%", minWidth: 6, marginTop: 7 }}></div>
-                              <div style={{ fontSize: 14, fontWeight: 300, color: "var(--mid)", lineHeight: 1.6 }}>{item}</div>
+                            <div
+                              key={i}
+                              onClick={function() { toggleSleepCheck(checkKey); }}
+                              style={{ display: "flex", gap: 14, alignItems: "flex-start", padding: "12px 0", borderBottom: i < items.length - 1 ? "1px solid var(--border)" : "none", cursor: "pointer" }}
+                            >
+                              <div style={{
+                                width: 20, height: 20, minWidth: 20, marginTop: 2,
+                                border: checked ? "none" : "1.5px solid var(--border)",
+                                background: checked ? "var(--maroon)" : "white",
+                                display: "flex", alignItems: "center", justifyContent: "center",
+                                transition: "all .15s"
+                              }}>
+                                {checked && (
+                                  <svg width="10" height="8" viewBox="0 0 10 8" fill="none">
+                                    <path d="M1 4L3.5 6.5L9 1" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                                  </svg>
+                                )}
+                              </div>
+                              <div style={{ fontSize: 14, fontWeight: 300, color: checked ? "var(--mid)" : "var(--charcoal)", lineHeight: 1.6, textDecoration: checked ? "line-through" : "none", opacity: checked ? 0.6 : 1, transition: "all .15s" }}>
+                                {item}
+                              </div>
                             </div>
                           );
                         })}
@@ -914,4 +952,3 @@ export default function Dashboard() {
     </div>
   );
 }
-  
