@@ -555,6 +555,7 @@ export default function Dashboard() {
                   <button className="card-btn" onClick={regenerateProgram} style={{ marginBottom: 8 }}>Regenerate Program</button>
                   <button className="card-btn ghost" onClick={function() { setActiveTab("profile"); }}>Update Profile</button>
                 </div>
+              </div>
               {regenMessage && (
                 <div style={{ marginTop: 16, padding: "12px 16px", background: "var(--maroon-light)", border: "1px solid rgba(123,26,56,.2)", fontSize: 14, fontWeight: 300, color: "var(--charcoal)" }}>
                   {regenMessage}
