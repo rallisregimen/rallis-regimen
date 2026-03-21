@@ -196,9 +196,13 @@ export default function IntakeForm() {
   async function submit() {
     setLoading(true); setErr(null);
     try {
+      // Get fresh session right before submit to ensure we have the user_id
+      var sessionResult = await supabase.auth.getSession();
+      var currentUser = sessionResult.data && sessionResult.data.session ? sessionResult.data.session.user : user;
+
       var p = Object.assign({}, form, {
-        user_id: user ? user.id : null,
-        email: user ? user.email : null,
+        user_id: currentUser ? currentUser.id : null,
+        email: currentUser ? currentUser.email : null,
         age: parseInt(form.age) || null,
         height_ft: parseInt(form.height_ft) || null,
         height_in: parseInt(form.height_in) || null,
@@ -323,7 +327,7 @@ export default function IntakeForm() {
               <div className="ey">Step 3 of 6</div>
               <h2 className="hd">Your training <em>situation.</em></h2>
               <p className="dc">This determines your program structure, split, and exercise selection.</p>
-              <div className="fg"><label className="fl">Experience Level <span className="fr">*</span></label><div className="r3"><OC selected={form.experience_level==='beginner'} onClick={function(){set('experience_level','beginner');}} label="Beginner" desc="Under 1 year" /><OC selected={form.experience_level==='intermediate'} onClick={function(){set('experience_level','intermediate');}} label="Intermediate" desc="1-3 years" /><OC selected={form.experience_level==='advanced'} onClick={function(){set('experience_level','advanced');}} label="Advanced" desc="3+ years" /></div></div>
+              <div className="fg"><label className="fl">Experience Level <span className="fr">*</span></label><div className="r3"><OC selected={form.experience_level==='beginner'} onClick={function(){set('experience_level','beginner');}} label="Beginner" desc="0-2 years" /><OC selected={form.experience_level==='intermediate'} onClick={function(){set('experience_level','intermediate');}} label="Intermediate" desc="3-7 years" /><OC selected={form.experience_level==='advanced'} onClick={function(){set('experience_level','advanced');}} label="Advanced" desc="8+ years" /></div></div>
               <div className="r2">
                 <div className="fg"><label className="fl">Training Days/Week <span className="fr">*</span></label><select value={form.training_days_per_week} onChange={function(e){set('training_days_per_week',e.target.value);}}><option value="">Select...</option>{['2','3','4','5','6'].map(function(n){return <option key={n} value={n}>{n} days</option>;})}</select></div>
                 <div className="fg"><label className="fl">Session Length <span className="fr">*</span></label><select value={form.session_length_mins} onChange={function(e){set('session_length_mins',e.target.value);}}><option value="">Select...</option><option value="30">30 min</option><option value="45">45 min</option><option value="60">60 min</option><option value="90">90 min</option><option value="120">90+ min</option></select></div>
