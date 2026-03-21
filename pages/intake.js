@@ -20,7 +20,7 @@ var EQUIPMENT_CARDS = [
 
 var SPECIFIC_EQ = ['Barbell','Trap Bar','Safety Squat Bar','Dumbbells','Kettlebells','Cable Machines','Weight Machines','Resistance Bands','Pull-Up Bar'];
 var DIETARY = ['None','No red meat','No pork','Pescatarian','Vegetarian','Vegan','Gluten free','Dairy free','Halal','Kosher'];
-var STEPS = ['About You','Goals','Training','Nutrition','Sleep','Environment'];
+var STEPS = ['About You','Goals','Training','Nutrition','Sleep'];
 
 var S = [
   "@import url(https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;0,900;1,400&family=Barlow+Condensed:wght@400;600;700&family=Barlow:wght@300;400&display=swap);",
@@ -146,9 +146,7 @@ export default function IntakeForm() {
     weight_management_goal:'', nutrition_approach:'', travel_frequency:'',
     dietary_restrictions:[], food_preferences:'', foods_to_avoid:'',
     avg_sleep_hours:'', sleep_issue:'', typical_bedtime:'', typical_wake_time:'',
-    caffeine_after_noon:false, phone_in_bedroom:false,
-    filters_water:false, morning_sunlight:false, nonstick_cookware:false,
-    conventional_cleaning:false, phone_in_bedroom_sleeping:false, success_vision:''
+    caffeine_after_noon:false, phone_in_bedroom:false, success_vision:''
   });
   var form = formState[0]; var setForm = formState[1];
 
@@ -355,9 +353,9 @@ export default function IntakeForm() {
 
           {step === 4 && (
             <div>
-              <div className="ey">Step 5 of 6</div>
+              <div className="ey">Step 5 of 5</div>
               <h2 className="hd">How you <em>recover.</em></h2>
-              <p className="dc">Sleep is the primary driver of recovery and adaptation.</p>
+              <p className="dc">Sleep is the primary driver of recovery and adaptation. Your protocol will be built around your actual schedule.</p>
               <div className="r2">
                 <div className="fg"><label className="fl">Average Sleep Hours <span className="fr">*</span></label><input type="number" value={form.avg_sleep_hours} onChange={function(e){set('avg_sleep_hours',e.target.value);}} placeholder="e.g. 6.5" min="3" max="12" step="0.5" /></div>
                 <div className="fg"><label className="fl">Sleep Issues</label><select value={form.sleep_issue} onChange={function(e){set('sleep_issue',e.target.value);}}><option value="">Select...</option><option value="none">No issues</option><option value="falling_asleep">Trouble falling asleep</option><option value="staying_asleep">Trouble staying asleep</option><option value="both">Both</option></select></div>
@@ -370,19 +368,6 @@ export default function IntakeForm() {
                 <Tog label="Caffeine after noon" sub="Coffee, pre-workout, tea, or energy drinks after 12pm" value={form.caffeine_after_noon} onChange={function(v){set('caffeine_after_noon',v);}} />
                 <Tog label="Phone in bedroom" sub="Do you keep your phone in your bedroom while sleeping?" value={form.phone_in_bedroom} onChange={function(v){set('phone_in_bedroom',v);}} />
               </div>
-            </div>
-          )}
-
-          {step === 5 && (
-            <div>
-              <div className="ey">Step 6 of 6</div>
-              <h2 className="hd">Your <em>environment.</em></h2>
-              <p className="dc">A quick audit of your current habits. We will prioritize the highest-impact changes first.</p>
-              <Tog label="I filter my drinking water" sub="Reverse osmosis, pitcher filter, or other filtration" value={form.filters_water} onChange={function(v){set('filters_water',v);}} />
-              <Tog label="I get morning sunlight within an hour of waking" sub="Natural outdoor light, not through a window" value={form.morning_sunlight} onChange={function(v){set('morning_sunlight',v);}} />
-              <Tog label="I cook with non-stick cookware" sub="Teflon or PFAS-coated pans" value={form.nonstick_cookware} onChange={function(v){set('nonstick_cookware',v);}} />
-              <Tog label="I use conventional cleaning and laundry products" sub="Standard supermarket cleaners and detergents" value={form.conventional_cleaning} onChange={function(v){set('conventional_cleaning',v);}} />
-              <Tog label="My phone charges in my bedroom overnight" sub="Phone within arms reach while sleeping" value={form.phone_in_bedroom_sleeping} onChange={function(v){set('phone_in_bedroom_sleeping',v);}} />
               <div className="fg" style={{marginTop:'28px'}}>
                 <label className="fl">What does success look like to you?</label>
                 <span className="fh">In your own words, what would a great outcome feel like 3 months from now?</span>
