@@ -693,7 +693,7 @@ export default function Dashboard() {
           {activeTab === "nutrition" && (
             <div>
               <div className="dash-page-title"><em>Nutrition</em> Plan</div>
-              <div className="dash-page-sub">Built around your training schedule and body composition goal. High carb on training days, low carb on rest days.</div>
+              <div className="dash-page-sub">Built around your training schedule. High carb on training days, higher fat on rest days to match total calories.</div>
               {program && program.meal_plan ? (
                 <div>
                   <div className="macro-bar">
@@ -701,7 +701,9 @@ export default function Dashboard() {
                       { num: program.meal_plan.daily_calories, label: "Calories" },
                       { num: (program.meal_plan.protein_g || "--") + "g", label: "Protein" },
                       { num: (program.meal_plan.carbs_g_training || "--") + "g", label: "Carbs (training)" },
-                      { num: (program.meal_plan.fat_g || "--") + "g", label: "Fat" },
+                      { num: (program.meal_plan.carbs_g_rest || "--") + "g", label: "Carbs (rest)" },
+                      { num: (program.meal_plan.fat_g_training || program.meal_plan.fat_g || "--") + "g", label: "Fat (training)" },
+                      { num: (program.meal_plan.fat_g_rest || "--") + "g", label: "Fat (rest)" },
                     ].map(function(m) {
                       return (
                         <div className="macro-item" key={m.label}>
@@ -716,48 +718,36 @@ export default function Dashboard() {
                       <div className="card-body">{program.meal_plan.approach}</div>
                     </div>
                   )}
-                  {program.meal_plan.sample_training_day && (
-                    <div>
-                      <div style={{ fontFamily: "Barlow Condensed", fontSize: 12, fontWeight: 700, letterSpacing: "0.15em", textTransform: "uppercase", color: "var(--gold)", marginBottom: 12, marginTop: 8 }}>Training Day</div>
-                      {Object.entries(program.meal_plan.sample_training_day).map(function(entry) {
-                        var meal = entry[0];
-                        var data = entry[1];
-                        if (!data || !data.description) return null;
-                        return (
-                          <div className="meal-card" key={meal}>
-                            <div className="meal-name">{meal.charAt(0).toUpperCase() + meal.slice(1)}</div>
-                            <div className="meal-desc">{data.description}</div>
-                            <div className="meal-macros">
-                              <div className="meal-macro"><strong>{data.protein_g}g</strong> protein</div>
-                              <div className="meal-macro"><strong>{data.carbs_g}g</strong> carbs</div>
-                              <div className="meal-macro"><strong>{data.fat_g}g</strong> fat</div>
-                              <div className="meal-macro"><strong>{data.calories}</strong> cal</div>
+                  {program.meal_plan.meal_plan && program.meal_plan.meal_plan.map(function(dayPlan, di) {
+                    return (
+                      <div key={di} style={{ marginBottom: 20 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 10 }}>
+                          <div style={{ fontFamily: "Barlow Condensed, sans-serif", fontSize: 16, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: "var(--charcoal)" }}>{dayPlan.day}</div>
+                          <div style={{ fontFamily: "Barlow Condensed, sans-serif", fontSize: 11, fontWeight: 700, letterSpacing: "0.15em", textTransform: "uppercase", color: dayPlan.type === "training" ? "var(--maroon)" : "var(--gold)", background: dayPlan.type === "training" ? "var(--maroon-light)" : "rgba(184,148,58,.1)", padding: "2px 8px" }}>{dayPlan.type === "training" ? "Training Day" : "Rest Day"}</div>
+                          {dayPlan.day_total && <div style={{ fontSize: 12, fontWeight: 300, color: "var(--mid)", marginLeft: "auto" }}>{dayPlan.day_total} cal total</div>}
+                        </div>
+                        {["breakfast", "shake", "lunch", "dinner", "dessert"].map(function(meal) {
+                          var mealData = dayPlan[meal];
+                          if (!mealData || !mealData.description) return null;
+                          return (
+                            <div className="meal-card" key={meal} style={{ marginBottom: 6 }}>
+                              <div className="meal-name">{meal.charAt(0).toUpperCase() + meal.slice(1)}</div>
+                              <div className="meal-desc">{mealData.description}</div>
+                              <div className="meal-macros">
+                                <div className="meal-macro"><strong>{mealData.protein_g}g</strong> protein</div>
+                                <div className="meal-macro"><strong>{mealData.carbs_g}g</strong> carbs</div>
+                                <div className="meal-macro"><strong>{mealData.fat_g}g</strong> fat</div>
+                                <div className="meal-macro"><strong>{mealData.calories}</strong> cal</div>
+                              </div>
                             </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
-                  {program.meal_plan.sample_rest_day && (
-                    <div>
-                      <div style={{ fontFamily: "Barlow Condensed", fontSize: 12, fontWeight: 700, letterSpacing: "0.15em", textTransform: "uppercase", color: "var(--gold)", marginBottom: 12, marginTop: 20 }}>Rest Day</div>
-                      {Object.entries(program.meal_plan.sample_rest_day).map(function(entry) {
-                        var meal = entry[0];
-                        var data = entry[1];
-                        if (!data || !data.description) return null;
-                        return (
-                          <div className="meal-card" key={meal}>
-                            <div className="meal-name">{meal.charAt(0).toUpperCase() + meal.slice(1)}</div>
-                            <div className="meal-desc">{data.description}</div>
-                            <div className="meal-macros">
-                              <div className="meal-macro"><strong>{data.protein_g}g</strong> protein</div>
-                              <div className="meal-macro"><strong>{data.carbs_g}g</strong> carbs</div>
-                              <div className="meal-macro"><strong>{data.fat_g}g</strong> fat</div>
-                              <div className="meal-macro"><strong>{data.calories}</strong> cal</div>
-                            </div>
-                          </div>
-                        );
-                      })}
+                          );
+                        })}
+                      </div>
+                    );
+                  })}
+                  {!program.meal_plan.meal_plan && (
+                    <div className="card">
+                      <div className="card-body">Regenerate your program to get the full 7-day meal plan.</div>
                     </div>
                   )}
                 </div>
