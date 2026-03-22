@@ -326,7 +326,13 @@ export default function Dashboard() {
         var u = session.user;
         setUser(u);
         supabase.from("profiles").select("*").eq("id", u.id).single().then(function(profileResult) {
-          setProfile(profileResult.data || { first_name: "Athlete" });
+          var p = profileResult.data || {};
+          // Fall back to auth metadata if profile has no name
+          if (!p.first_name && !p.full_name) {
+            var meta = u.user_metadata || {};
+            p.first_name = meta.full_name ? meta.full_name.split(' ')[0] : (u.email ? u.email.split('@')[0] : 'Athlete');
+          }
+          setProfile(p);
         });
         supabase.from("generated_programs").select("*").eq("user_id", u.id).order("generated_at", { ascending: false }).limit(1).single().then(function(programResult) {
           setProgram(programResult.data || null);
@@ -339,7 +345,12 @@ export default function Dashboard() {
             var u = result.data.session.user;
             setUser(u);
             var profileResult = await supabase.from("profiles").select("*").eq("id", u.id).single();
-            setProfile(profileResult.data || { first_name: "Athlete" });
+            var p = profileResult.data || {};
+            if (!p.first_name && !p.full_name) {
+              var meta = u.user_metadata || {};
+              p.first_name = meta.full_name ? meta.full_name.split(' ')[0] : (u.email ? u.email.split('@')[0] : 'Athlete');
+            }
+            setProfile(p);
             var programResult = await supabase.from("generated_programs").select("*").eq("user_id", u.id).order("generated_at", { ascending: false }).limit(1).single();
             setProgram(programResult.data || null);
             setLoading(false);
@@ -359,6 +370,17 @@ export default function Dashboard() {
   useEffect(function() {
     if (chatEndRef.current) chatEndRef.current.scrollIntoView({ behavior: "smooth" });
   }, [chatMessages, chatLoading]);
+    // Program not loaded yet — poll every 5 seconds
+    var interval = setInterval(async function() {
+      if (!user) return;
+      var result = await supabase.from("generated_programs").select("*").eq("user_id", user.id).eq("status", "ready").order("generated_at", { ascending: false }).limit(1).single();
+      if (result.data) {
+        setProgram(result.data);
+        clearInterval(interval);
+      }
+    }, 5000);
+    return function() { clearInterval(interval); };
+  }, [loading, program, user]);
 
   function getLogKey(dayLabel, exerciseName, setIndex) {
     return dayLabel + "--" + exerciseName + "--" + setIndex;
@@ -489,7 +511,11 @@ export default function Dashboard() {
     );
   }
 
-  var firstName = (profile && profile.first_name) ? profile.first_name : "Athlete";
+  var firstName = (profile && (profile.first_name || profile.full_name))
+    ? (profile.first_name || profile.full_name.split(' ')[0])
+    : (user && user.user_metadata && user.user_metadata.full_name)
+      ? user.user_metadata.full_name.split(' ')[0]
+      : "Athlete";
   var trainingData = (program && program.training_program) ? program.training_program : DEMO_PROGRAM.training_program;
   var block = trainingData.blocks ? trainingData.blocks[0] : null;
 
@@ -527,14 +553,14 @@ export default function Dashboard() {
               <div className="card-grid">
                 <div className="card">
                   <div className="card-label">Training</div>
-                  <div className="card-title">{(program && program.program_name) ? program.program_name : "Program Generating..."}</div>
+                  <div className="card-title">{(program && program.program_name) ? program.program_name.replace(/_/g, ' ') : "Building Your Program..."}</div>
                   <div className="card-body">
                     {program && program.program_name
-                      ? "Block " + ((program && program.block_number) ? program.block_number : 1) + " of 3. Log your sets inline as you train and get automatic progression suggestions each week."
-                      : "Your program is being generated. This takes about 30 seconds. Refresh the page to check."
+                      ? "Log your sets inline as you train. Your program will adjust next week based on your performance."
+                      : "Your program is generating — this takes about 30 seconds. This page will refresh automatically."
                     }
                   </div>
-                  <button className="card-btn" onClick={function() { setActiveTab("training"); }}>Open Program</button>
+                  <button className="card-btn" onClick={function() { setActiveTab("training"); }}>{program && program.program_name ? "Open Program" : "Check Status"}</button>
                 </div>
                 <div className="card">
                   <div className="card-label">Nutrition</div>
@@ -569,8 +595,14 @@ export default function Dashboard() {
             <div>
               <div className="dash-page-title"><em>Training</em> Program</div>
               <div className="dash-page-sub">
-                {(program && program.program_name) ? program.program_name : "Hypertrophy Block 1"} — Block {(program && program.block_number) ? program.block_number : 1} of 3.
-                Log your sets inline. The Regimen adjusts next week automatically.
+                {(program && program.program_name) ? program.program_name.replace(/_/g, ' ') : "Your Program"}.
+                {" "}Your program will adjust next week based on your performance.
+              </div>
+
+              {/* RIR explanation */}
+              <div style={{ background: "var(--maroon-light)", border: "1px solid rgba(123,26,56,.15)", padding: "12px 16px", marginBottom: 16, fontSize: 13, fontWeight: 300, color: "var(--mid)", lineHeight: 1.6 }}>
+                <strong style={{ fontFamily: "Barlow Condensed, sans-serif", fontWeight: 700, fontSize: 12, letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--charcoal)" }}>RIR — Reps In Reserve</strong><br />
+                The number of reps you have left in the tank when you end a set. RIR 3 means you stop with 3 reps left. Week 1 starts conservative (RIR 3-4) and gets more intense each week. Week 4 is a deload — go light and recover.
               </div>
 
               {/* Week selector */}
@@ -894,7 +926,7 @@ export default function Dashboard() {
               <div className="dash-page-title">Your <em>Profile</em></div>
               <div className="dash-page-sub">Update your information to regenerate your program next cycle.</div>
               <div className="card">
-                <div className="card-body">Profile editing coming soon. To update your intake information now, email hello@rallisregimen.com.</div>
+                <div className="card-body">Profile editing coming soon. To update your intake information now, email contact@rallisregimen.com.</div>
               </div>
             </div>
           )}
