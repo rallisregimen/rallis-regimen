@@ -194,7 +194,6 @@ export default function IntakeForm() {
   async function submit() {
     setLoading(true); setErr(null);
     try {
-      // Get fresh session right before submit to ensure we have the user_id
       var sessionResult = await supabase.auth.getSession();
       var currentUser = sessionResult.data && sessionResult.data.session ? sessionResult.data.session.user : user;
 
@@ -211,7 +210,6 @@ export default function IntakeForm() {
         avg_sleep_hours: parseFloat(form.avg_sleep_hours) || null,
       });
 
-      // Use the API route which handles Supabase server-side
       var res = await fetch('/api/intake', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -221,8 +219,17 @@ export default function IntakeForm() {
       if (!res.ok) throw new Error('failed');
       setDone(true);
 
-      // Redirect to dashboard after 2 seconds
-      setTimeout(function() { router.push('/dashboard'); }, 2000);
+      // Trigger generation and go to dashboard — generation runs in background
+      if (currentUser && currentUser.id) {
+        fetch('/api/generate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId: currentUser.id })
+        }).catch(function(e) { console.error('Generate error:', e); });
+      }
+
+      // Go to dashboard after short delay — program will be generating in background
+      setTimeout(function() { router.push('/dashboard'); }, 1500);
     } catch(e) {
       setErr('Something went wrong. Please try again.');
     } finally {
