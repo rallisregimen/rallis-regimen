@@ -370,14 +370,16 @@ export default function Dashboard() {
   useEffect(function() {
     if (chatEndRef.current) chatEndRef.current.scrollIntoView({ behavior: "smooth" });
   }, [chatMessages, chatLoading]);
-    // Program not loaded yet — poll every 5 seconds
-    var interval = setInterval(async function() {
-      if (!user) return;
-      var result = await supabase.from("generated_programs").select("*").eq("user_id", user.id).eq("status", "ready").order("generated_at", { ascending: false }).limit(1).single();
-      if (result.data) {
-        setProgram(result.data);
-        clearInterval(interval);
-      }
+
+  useEffect(function() {
+    if (loading || program || !user) return;
+    var userId = user.id;
+    var interval = setInterval(function() {
+      supabase.from("generated_programs").select("*").eq("user_id", userId).eq("status", "ready").order("generated_at", { ascending: false }).limit(1).single().then(function(result) {
+        if (result.data) {
+          setProgram(result.data);
+        }
+      });
     }, 5000);
     return function() { clearInterval(interval); };
   }, [loading, program, user]);
