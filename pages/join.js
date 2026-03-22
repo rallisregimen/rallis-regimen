@@ -3,7 +3,7 @@ import Head from 'next/head'
 import { useRouter } from 'next/router'
 
 const styles = `
-  @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;0,900;1,400&family=Barlow+Condensed:wght@400;500;600;700&family=Barlow:wght@300;400;500&display=swap');
+  @import url(https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;0,900;1,400&family=Barlow+Condensed:wght@400;500;600;700&family=Barlow:wght@300;400;500&display=swap);
   *{box-sizing:border-box;margin:0;padding:0;}
   :root{--maroon:#7B1A38;--maroon-dark:#5C1229;--maroon-light:#F2E8EC;--off-white:#F7F4EF;--charcoal:#1A1A1A;--mid:#4A4A4A;--gold:#B8943A;--border:rgba(123,26,56,0.12);}
   body{background:var(--off-white);font-family:'Barlow',sans-serif;min-height:100vh;}
@@ -154,6 +154,9 @@ export default function JoinPage() {
             {loading ? 'Redirecting to checkout...' : `Start My Regimen — ${plan==='monthly'?'$47/mo':'$397/yr'}`}
           </button>
           <p className="join-note">Secure checkout via Stripe · Cancel anytime · 30-day money-back guarantee</p>
+          <p style={{ textAlign: 'center', marginTop: 16, fontSize: 13, fontWeight: 300, color: 'var(--mid)' }}>
+            Already a member? <a onClick={() => router.push('/login')} style={{ color: 'var(--maroon)', cursor: 'pointer', textDecoration: 'underline' }}>Log in here</a>
+          </p>
         </div>
 
       </div>
