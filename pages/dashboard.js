@@ -281,8 +281,13 @@ export default function Dashboard() {
 
   var sleepChecksState = useState(function() {
     try {
+      var today = new Date().toDateString();
       var saved = typeof window !== 'undefined' ? localStorage.getItem('sleep-checks') : null;
-      return saved ? JSON.parse(saved) : {};
+      if (!saved) return {};
+      var parsed = JSON.parse(saved);
+      // Reset if it's a new day
+      if (parsed._date !== today) return {};
+      return parsed;
     } catch(e) { return {}; }
   });
   var sleepChecks = sleepChecksState[0];
@@ -290,8 +295,10 @@ export default function Dashboard() {
 
   function toggleSleepCheck(key) {
     setSleepChecks(function(prev) {
-      var next = Object.assign({}, prev, {});
+      var today = new Date().toDateString();
+      var next = Object.assign({}, prev);
       next[key] = !prev[key];
+      next._date = today;
       try { localStorage.setItem('sleep-checks', JSON.stringify(next)); } catch(e) {}
       return next;
     });
@@ -385,7 +392,7 @@ export default function Dashboard() {
   }, [loading, program, user]);
 
   function getLogKey(dayLabel, exerciseName, setIndex) {
-    return dayLabel + "--" + exerciseName + "--" + setIndex;
+    return "w" + currentWeek + "--" + dayLabel + "--" + exerciseName + "--" + setIndex;
   }
 
   function updateLog(dayLabel, exerciseName, setIndex, field, value) {
@@ -477,6 +484,40 @@ export default function Dashboard() {
     return total > 0 && count >= total;
   }
 
+  function parseSuggestion(reply) {
+    var marker = '@@SUGGESTION@@';
+    var endMarker = '@@END@@';
+    var start = reply.indexOf(marker);
+    var end = reply.indexOf(endMarker);
+    if (start === -1 || end === -1) return { text: reply, suggestion: null };
+    var jsonStr = reply.substring(start + marker.length, end).trim();
+    var text = reply.substring(0, start).trim();
+    try {
+      var suggestion = JSON.parse(jsonStr);
+      return { text: text, suggestion: suggestion };
+    } catch(e) {
+      return { text: text, suggestion: null };
+    }
+  }
+
+  async function saveSuggestion(suggestion) {
+    if (!user) return;
+    try {
+      var res = await fetch('/api/save-suggestion', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: user.id, suggestion: suggestion })
+      });
+      if (res.ok) {
+        // Refresh program data
+        var programResult = await supabase.from("generated_programs").select("*").eq("user_id", user.id).order("generated_at", { ascending: false }).limit(1).single();
+        if (programResult.data) setProgram(programResult.data);
+        return true;
+      }
+    } catch(e) { console.error('Save suggestion error:', e); }
+    return false;
+  }
+
   async function sendChat(text) {
     var msg = text || chatInput.trim();
     if (!msg || chatLoading) return;
@@ -491,7 +532,10 @@ export default function Dashboard() {
         body: JSON.stringify({ messages: newMessages, memberId: user ? user.id : null })
       });
       var data = await res.json();
-      setChatMessages(function(prev) { return prev.concat([{ role: "assistant", content: data.reply || "Something went wrong. Please try again." }]); });
+      var parsed = parseSuggestion(data.reply || "Something went wrong. Please try again.");
+      setChatMessages(function(prev) {
+        return prev.concat([{ role: "assistant", content: parsed.text, suggestion: parsed.suggestion }]);
+      });
     } catch (err) {
       setChatMessages(function(prev) { return prev.concat([{ role: "assistant", content: "Something went wrong. Please try again." }]); });
     } finally {
@@ -617,6 +661,22 @@ export default function Dashboard() {
                   );
                 })}
               </div>
+
+              {/* Week 4 deload completion prompt */}
+              {currentWeek === 4 && (
+                <div style={{ background: "var(--charcoal)", padding: "20px 24px", marginBottom: 16, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, flexWrap: "wrap" }}>
+                  <div>
+                    <div style={{ fontFamily: "Barlow Condensed, sans-serif", fontSize: 13, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: "var(--gold)", marginBottom: 4 }}>Deload Week</div>
+                    <div style={{ fontSize: 13, fontWeight: 300, color: "rgba(255,255,255,0.7)", lineHeight: 1.5 }}>Once you finish your deload, generate your next program. Your logs and progress carry forward.</div>
+                  </div>
+                  <button
+                    onClick={regenerateProgram}
+                    style={{ background: "var(--maroon)", border: "none", color: "white", fontFamily: "Barlow Condensed, sans-serif", fontSize: 13, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", padding: "12px 24px", cursor: "pointer", whiteSpace: "nowrap" }}
+                  >
+                    Generate Next Program
+                  </button>
+                </div>
+              )}
 
               {block && block.days && block.days.map(function(day, di) {
                 var isOpen = openDay === di;
@@ -876,7 +936,23 @@ export default function Dashboard() {
                         <div className={m.role === "user" ? "chat-avatar user" : "chat-avatar"}>
                           {m.role === "assistant" ? "R" : firstName.charAt(0).toUpperCase()}
                         </div>
-                        <div className="chat-bubble">{m.content}</div>
+                        <div style={{ display: "flex", flexDirection: "column", gap: 8, maxWidth: "calc(100% - 40px)" }}>
+                          <div className="chat-bubble">{m.content}</div>
+                          {m.suggestion && (
+                            <button
+                              onClick={async function() {
+                                var btn = document.getElementById("save-btn-" + i);
+                                if (btn) { btn.textContent = "Saving..."; btn.disabled = true; }
+                                var ok = await saveSuggestion(m.suggestion);
+                                if (btn) { btn.textContent = ok ? "Saved to program" : "Save failed"; }
+                              }}
+                              id={"save-btn-" + i}
+                              style={{ alignSelf: "flex-start", background: "var(--maroon)", color: "white", border: "none", cursor: "pointer", fontFamily: "Barlow Condensed, sans-serif", fontSize: 12, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", padding: "8px 16px", transition: "background .2s" }}
+                            >
+                              {m.suggestion.type === "meal" ? "Save meal to program" : "Save exercise swap"}
+                            </button>
+                          )}
+                        </div>
                       </div>
                     );
                   })}
@@ -926,9 +1002,16 @@ export default function Dashboard() {
           {activeTab === "profile" && (
             <div>
               <div className="dash-page-title">Your <em>Profile</em></div>
-              <div className="dash-page-sub">Update your information to regenerate your program next cycle.</div>
+              <div className="dash-page-sub">Update your information to regenerate your program with fresh inputs.</div>
               <div className="card">
-                <div className="card-body">Profile editing coming soon. To update your intake information now, email contact@rallisregimen.com.</div>
+                <div className="card-label">Update Your Inputs</div>
+                <div className="card-body" style={{ marginBottom: 16 }}>Change your goals, weight, schedule, equipment, or any other information. Saving will automatically generate a new program based on your updated profile.</div>
+                <button className="card-btn" onClick={function() { router.push('/profile'); }}>Edit Profile</button>
+              </div>
+              <div className="card">
+                <div className="card-label">Account</div>
+                <div className="card-body" style={{ marginBottom: 16 }}>Questions or issues? Reach us at <a href="mailto:contact@rallisregimen.com" style={{ color: "var(--maroon)" }}>contact@rallisregimen.com</a></div>
+                <button className="card-btn ghost" onClick={signOut}>Sign Out</button>
               </div>
             </div>
           )}
