@@ -258,8 +258,13 @@ export default function Dashboard() {
   var openDay = openDayState[0];
   var setOpenDay = openDayState[1];
 
-  // Logs: { "Day1-ExerciseName-setIndex": { weight, reps, rir, notes, saved, suggestion } }
-  var logsState = useState({});
+  // Logs: { "w1--Day1-ExerciseName-setIndex": { weight, reps, rir, notes, saved, suggestion } }
+  var logsState = useState(function() {
+    try {
+      var saved = typeof window !== 'undefined' ? localStorage.getItem('workout-logs') : null;
+      return saved ? JSON.parse(saved) : {};
+    } catch(e) { return {}; }
+  });
   var logs = logsState[0];
   var setLogs = logsState[1];
 
@@ -455,6 +460,7 @@ export default function Dashboard() {
         updated.saving = false;
         if (data.suggestion) updated.suggestion = data.suggestion;
         next[key] = updated;
+        try { localStorage.setItem('workout-logs', JSON.stringify(next)); } catch(e) {}
         return next;
       });
     } catch (err) {
@@ -602,7 +608,7 @@ export default function Dashboard() {
                   <div className="card-title">{(program && program.program_name) ? program.program_name.replace(/_/g, ' ') : "Building Your Program..."}</div>
                   <div className="card-body">
                     {program && program.program_name
-                      ? "Log your sets inline as you train. Your program will adjust next week based on your performance."
+                      ? "Log your sets and hit Save after each one. You'll get a next-week progression suggestion based on your performance."
                       : "Your program is generating — this takes about 30 seconds. This page will refresh automatically."
                     }
                   </div>
@@ -642,7 +648,7 @@ export default function Dashboard() {
               <div className="dash-page-title"><em>Training</em> Program</div>
               <div className="dash-page-sub">
                 {(program && program.program_name) ? program.program_name.replace(/_/g, ' ') : "Your Program"}.
-                {" "}Your program will adjust next week based on your performance.
+                {" "}Log your sets after each session — hit Save to record your performance and get a next-week progression suggestion.
               </div>
 
               {/* RIR explanation */}
@@ -735,12 +741,12 @@ export default function Dashboard() {
                                         onChange={function(v) { updateLog(day.day, ex.name, si, "reps", v); }}
                                       />
                                       <LogInput
-                                        placeholder={ex.rir_week1}
+                                        placeholder={ex["rir_week" + currentWeek] || ex.rir_week1 || "RIR"}
                                         value={logEntry.rir || ""}
                                         onChange={function(v) { updateLog(day.day, ex.name, si, "rir", v); }}
                                       />
                                       <div style={{ textAlign: "center", fontSize: 11, color: "var(--mid)", fontFamily: "Barlow Condensed" }}>
-                                        {ex.reps} @ {ex.rir_week1}
+                                        {ex.reps} @ RIR {ex["rir_week" + currentWeek] || ex.rir_week1}
                                       </div>
                                       <div className="log-input" style={{ padding: "4px 6px" }}>
                                         <input
@@ -755,9 +761,9 @@ export default function Dashboard() {
                                         className={logEntry.saved ? "log-btn saved" : "log-btn"}
                                         onClick={function() { saveLog(day.day, ex.name, si, si + 1); }}
                                         disabled={logEntry.saving}
-                                        title="Save set"
+                                        title="Save set and get next week suggestion"
                                       >
-                                        {logEntry.saving ? "..." : logEntry.saved ? "✓" : "→"}
+                                        {logEntry.saving ? "..." : logEntry.saved ? "✓" : "Save"}
                                       </button>
                                     </div>
                                     {logEntry.suggestion && (
