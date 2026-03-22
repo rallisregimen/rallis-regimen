@@ -100,7 +100,8 @@ export default function ProfilePage() {
         body: JSON.stringify(payload)
       });
 
-      if (!res.ok) throw new Error('Save failed');
+      var resData = await res.json();
+      if (!res.ok || resData.error) throw new Error(resData.error || 'Save failed');
 
       // Trigger new program generation
       fetch('/api/generate', {
@@ -111,7 +112,8 @@ export default function ProfilePage() {
 
       setMsg({ type: 'success', text: 'Profile saved. Your new program is generating — check your dashboard in about 30 seconds.' });
     } catch(e) {
-      setMsg({ type: 'error', text: 'Something went wrong. Please try again.' });
+      console.error('Profile save error:', e);
+      setMsg({ type: 'error', text: 'Error: ' + (e.message || 'Something went wrong. Please try again.') });
     } finally {
       setSaving(false);
     }
