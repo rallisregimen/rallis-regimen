@@ -57,7 +57,7 @@ export default async function handler(req, res) {
     };
 
     console.log('Inserting intake for user_id:', payload.user_id);
-    var result = await supabase.from('intake_submissions').insert(payload);
+    var result = await supabase.from('intake_submissions').upsert(payload, { onConflict: 'user_id' });
 
     if (result.error) {
       console.error('Intake insert error:', JSON.stringify(result.error));
