@@ -768,6 +768,7 @@ export default function Dashboard() {
                                           <div>
                                             <div className="exercise-name">{ex.name}</div>
                                             {ex.note && <div className="exercise-target">{ex.note}</div>}
+                                            {ex.rest && <div style={{ fontSize: 11, fontFamily: "Barlow Condensed, sans-serif", fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase", color: "var(--gold)", marginTop: 2 }}>Rest: {ex.rest}</div>}
                                           </div>
                                         )}
                                         {si > 0 && (
