@@ -129,6 +129,7 @@ var NAV = [
   { id: "training", icon: "⚡", label: "Training" },
   { id: "nutrition", icon: "N", label: "Nutrition" },
   { id: "sleep", icon: "Z", label: "Sleep" },
+  { id: "progress", icon: "↑", label: "Progress" },
   { id: "chat", icon: "R", label: "The Regimen" },
   { id: "profile", icon: "◎", label: "Profile" },
 ];
@@ -284,6 +285,22 @@ export default function Dashboard() {
   var regenMessage = regenState[0];
   var setRegenMessage = regenState[1];
 
+  var weightLogsState = useState([]);
+  var weightLogs = weightLogsState[0];
+  var setWeightLogs = weightLogsState[1];
+
+  var weightInputState = useState("");
+  var weightInput = weightInputState[0];
+  var setWeightInput = weightInputState[1];
+
+  var weightNoteState = useState("");
+  var weightNote = weightNoteState[0];
+  var setWeightNote = weightNoteState[1];
+
+  var weightSavingState = useState(false);
+  var weightSaving = weightSavingState[0];
+  var setWeightSaving = weightSavingState[1];
+
   var sleepChecksState = useState(function() {
     try {
       var today = new Date().toDateString();
@@ -310,6 +327,31 @@ export default function Dashboard() {
   }
 
   var chatEndRef = useRef(null);
+
+  async function loadWeightLogs() {
+    if (!user) return;
+    try {
+      var res = await fetch('/api/weight-log?userId=' + user.id);
+      var data = await res.json();
+      if (data.logs) setWeightLogs(data.logs);
+    } catch(e) { console.error('Weight load error:', e); }
+  }
+
+  async function saveWeight() {
+    if (!user || !weightInput) return;
+    setWeightSaving(true);
+    try {
+      await fetch('/api/weight-log', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: user.id, weight_lbs: parseFloat(weightInput), note: weightNote })
+      });
+      setWeightInput("");
+      setWeightNote("");
+      loadWeightLogs();
+    } catch(e) { console.error('Weight save error:', e); }
+    finally { setWeightSaving(false); }
+  }
 
   async function regenerateProgram() {
     if (!user) { setRegenMessage("Please log in to regenerate your program."); return; }
@@ -350,6 +392,8 @@ export default function Dashboard() {
           setProgram(programResult.data || null);
           setLoading(false);
         });
+        // Load weight logs
+        fetch('/api/weight-log?userId=' + u.id).then(function(r) { return r.json(); }).then(function(d) { if (d.logs) setWeightLogs(d.logs); }).catch(function(){});
       } else {
         setTimeout(async function() {
           var result = await supabase.auth.getSession();
@@ -916,6 +960,124 @@ export default function Dashboard() {
             </div>
           )}
 
+
+          {/* PROGRESS */}
+          {activeTab === "progress" && (
+            <div>
+              <div className="dash-page-title">Your <em>Progress</em></div>
+              <div className="dash-page-sub">Log your weight weekly to track your progress over time.</div>
+
+              {/* Log weight */}
+              <div className="card" style={{ marginBottom: 16 }}>
+                <div className="card-label">Log Today's Weight</div>
+                <div style={{ display: "flex", gap: 10, marginBottom: 10, flexWrap: "wrap" }}>
+                  <input
+                    type="number"
+                    placeholder="Weight (lbs)"
+                    value={weightInput}
+                    onChange={function(e) { setWeightInput(e.target.value); }}
+                    style={{ background: "white", border: "1.5px solid var(--border)", padding: "10px 14px", fontFamily: "Barlow, sans-serif", fontSize: 14, fontWeight: 300, color: "var(--charcoal)", outline: "none", width: 140 }}
+                  />
+                  <input
+                    type="text"
+                    placeholder="Note (optional)"
+                    value={weightNote}
+                    onChange={function(e) { setWeightNote(e.target.value); }}
+                    style={{ background: "white", border: "1.5px solid var(--border)", padding: "10px 14px", fontFamily: "Barlow, sans-serif", fontSize: 14, fontWeight: 300, color: "var(--charcoal)", outline: "none", flex: 1, minWidth: 160 }}
+                  />
+                  <button
+                    onClick={saveWeight}
+                    disabled={weightSaving || !weightInput}
+                    style={{ background: "var(--maroon)", color: "white", border: "none", cursor: "pointer", fontFamily: "Barlow Condensed, sans-serif", fontSize: 13, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", padding: "10px 20px", opacity: (!weightInput) ? 0.4 : 1 }}
+                  >
+                    {weightSaving ? "Saving..." : "Save"}
+                  </button>
+                </div>
+              </div>
+
+              {/* Weight chart */}
+              {weightLogs.length > 0 ? (
+                <div className="card">
+                  <div className="card-label">Weight Over Time</div>
+                  <div style={{ overflowX: "auto" }}>
+                    {(function() {
+                      var weights = weightLogs.map(function(l) { return parseFloat(l.weight_lbs); });
+                      var minW = Math.min.apply(null, weights) - 2;
+                      var maxW = Math.max.apply(null, weights) + 2;
+                      var range = maxW - minW || 1;
+                      var chartH = 140;
+                      var chartW = Math.max(400, weightLogs.length * 48);
+                      var pts = weightLogs.map(function(l, i) {
+                        var x = (i / Math.max(weightLogs.length - 1, 1)) * (chartW - 40) + 20;
+                        var y = chartH - ((parseFloat(l.weight_lbs) - minW) / range) * (chartH - 20) - 10;
+                        return { x: x, y: y, w: l.weight_lbs, date: l.logged_at };
+                      });
+                      var pathD = pts.map(function(p, i) { return (i === 0 ? 'M' : 'L') + p.x + ' ' + p.y; }).join(' ');
+                      return (
+                        <svg width={chartW} height={chartH + 40} style={{ display: "block" }}>
+                          <path d={pathD} fill="none" stroke="var(--maroon)" strokeWidth="2" />
+                          {pts.map(function(p, i) {
+                            return (
+                              <g key={i}>
+                                <circle cx={p.x} cy={p.y} r="4" fill="var(--maroon)" />
+                                <text x={p.x} y={p.y - 10} textAnchor="middle" fontSize="11" fill="var(--charcoal)" fontFamily="Barlow, sans-serif">{p.w}</text>
+                                <text x={p.x} y={chartH + 20} textAnchor="middle" fontSize="10" fill="var(--mid)" fontFamily="Barlow, sans-serif" transform={"rotate(-45," + p.x + "," + (chartH + 20) + ")"}>
+                                  {p.date ? p.date.slice(5) : ""}
+                                </text>
+                              </g>
+                            );
+                          })}
+                        </svg>
+                      );
+                    })()}
+                  </div>
+
+                  {/* Stats */}
+                  {(function() {
+                    if (weightLogs.length < 2) return null;
+                    var first = parseFloat(weightLogs[0].weight_lbs);
+                    var last = parseFloat(weightLogs[weightLogs.length - 1].weight_lbs);
+                    var diff = Math.round((last - first) * 10) / 10;
+                    var sign = diff > 0 ? "+" : "";
+                    return (
+                      <div style={{ display: "flex", gap: 24, marginTop: 16, paddingTop: 16, borderTop: "1px solid var(--border)", flexWrap: "wrap" }}>
+                        <div>
+                          <div style={{ fontFamily: "Barlow Condensed, sans-serif", fontSize: 11, fontWeight: 700, letterSpacing: "0.15em", textTransform: "uppercase", color: "var(--mid)", marginBottom: 2 }}>Starting</div>
+                          <div style={{ fontFamily: "Playfair Display, serif", fontSize: 24, fontWeight: 900, color: "var(--charcoal)" }}>{first} lbs</div>
+                        </div>
+                        <div>
+                          <div style={{ fontFamily: "Barlow Condensed, sans-serif", fontSize: 11, fontWeight: 700, letterSpacing: "0.15em", textTransform: "uppercase", color: "var(--mid)", marginBottom: 2 }}>Current</div>
+                          <div style={{ fontFamily: "Playfair Display, serif", fontSize: 24, fontWeight: 900, color: "var(--charcoal)" }}>{last} lbs</div>
+                        </div>
+                        <div>
+                          <div style={{ fontFamily: "Barlow Condensed, sans-serif", fontSize: 11, fontWeight: 700, letterSpacing: "0.15em", textTransform: "uppercase", color: "var(--mid)", marginBottom: 2 }}>Total Change</div>
+                          <div style={{ fontFamily: "Playfair Display, serif", fontSize: 24, fontWeight: 900, color: diff < 0 ? "var(--maroon)" : diff > 0 ? "var(--gold)" : "var(--charcoal)" }}>{sign}{diff} lbs</div>
+                        </div>
+                      </div>
+                    );
+                  })()}
+
+                  {/* Log history */}
+                  <div style={{ marginTop: 16, paddingTop: 16, borderTop: "1px solid var(--border)" }}>
+                    <div style={{ fontFamily: "Barlow Condensed, sans-serif", fontSize: 11, fontWeight: 700, letterSpacing: "0.15em", textTransform: "uppercase", color: "var(--mid)", marginBottom: 8 }}>History</div>
+                    {weightLogs.slice().reverse().slice(0, 10).map(function(log, i) {
+                      return (
+                        <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", borderBottom: "1px solid var(--border)", fontSize: 13 }}>
+                          <span style={{ fontWeight: 300, color: "var(--mid)" }}>{log.logged_at}</span>
+                          <span style={{ fontWeight: 600, color: "var(--charcoal)" }}>{log.weight_lbs} lbs</span>
+                          {log.note && <span style={{ fontWeight: 300, color: "var(--mid)", fontSize: 12 }}>{log.note}</span>}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ) : (
+                <div className="card">
+                  <div className="card-body">Log your first weight entry above to start tracking your progress.</div>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* CHAT */}
           {activeTab === "chat" && (
