@@ -41,33 +41,35 @@ function buildTrainingPrompt(intake, profile, days, splitType, splitDesc) {
   }
   var blockProgression = 'BLOCK PROGRESSION (generate all 3 blocks):\n- Block 1 (weeks 1-4): Establish baseline. Select exercises that fit the emphasis pattern and goal. RIR W1=3-4, W2=2-3, W3=1-2, W4=deload.\n- Block 2 (weeks 5-8): Rotate emphasis within each day type. If Block 1 Upper A was horizontal push primary, Block 2 Upper A keeps the horizontal push/pull structure but may shift the primary exercise (e.g., barbell bench becomes incline dumbbell press) or adjust supplemental emphasis. Lower days swap which pattern is primary. RIR same progression.\n- Block 3 (weeks 9-12): Further variation. Can return to Block 1 exercise selection but with increased load targets, or introduce new variations. The general movement pattern template stays consistent across all 3 blocks; what changes is the specific exercise, implement, or rep scheme.\n\nThis creates indefinite progression: each monthly regeneration rotates through the same principles with fresh exercise variation.';
 
-  return 'Generate ONLY the training section of a fitness program as valid JSON. No text outside JSON.\n\nMEMBER: ' + name + ', ' + intake.age + 'yo ' + intake.sex + ', ' + intake.experience_level + '. Equipment: ' + equipment + '. Goal: ' + goal + '. Vision: ' + successVision + '. Session: ' + intake.session_length_mins + 'min. Injuries: ' + (intake.injuries_limitations || 'none') + '.\n\nREP SCHEME: ' + repScheme + '\n\n' + structureGuide + '\n\n' + blockProgression + cardioNote + '\n\nCRITICAL RULES:\n1. Generate EXACTLY ' + days + ' unique training day templates. Count them.\n2. Equipment ' + equipment + ': home_bands/bodyweight_only=zero machines; dumbbells_only=zero barbells/machines.\n3. Never repeat the same exercise variation more than once per session.\n4. Same muscle group needs 2+ days rest between sessions targeting it as primary.\n5. Reflect success vision in exercise selection: ' + successVision + '\n6. For 2-3 day full body programs: hit each major muscle group at least once per week even if not every session.\n7. BAND EXERCISES: resistance bands = minimum 12-15 reps, typically 20-30 reps. Never program bands for low-rep strength work.\n8. BANDS + BODYWEIGHT: If equipment is home_bands, use a MIX of band and bodyweight exercises. Use bands for rows, pull-aparts, curls, deadlifts. Use bodyweight for push-ups, dips, lunges, step-ups, glute bridges, planks, core work. Aim roughly half and half.\n9. COMPOUND CAP: Maximum 3 compound/multi-joint exercises per training day. Full body and bodyweight-only days may have up to 4. Fill remaining slots with isolation and accessory work.\n\nOutput ONLY this JSON:\n{"split":"' + splitType + '","weekly_schedule":{"day_1":"string","day_2":"string","day_3":"string","day_4":"string","day_5":"string","day_6":"string","day_7":"string"},"blocks":[{"block":1,"weeks":"1-4","days":[{"day":"string","focus":"string","exercises":[{"name":"string","sets":3,"reps":"string","rir_week1":"string","rir_week2":"string","rir_week3":"string","rir_week4":"string","rest":"string","note":"string"}]}]},{"block":2,"weeks":"5-8","days":[{"day":"string","focus":"string","exercises":[{"name":"string","sets":3,"reps":"string","rir_week1":"string","rir_week2":"string","rir_week3":"string","rir_week4":"string","rest":"string","note":"string"}]}]},{"block":3,"weeks":"9-12","days":[{"day":"string","focus":"string","exercises":[{"name":"string","sets":3,"reps":"string","rir_week1":"string","rir_week2":"string","rir_week3":"string","rir_week4":"string","rest":"string","note":"string"}]}]}]}';
+  return 'Generate ONLY the training section of a fitness program as valid JSON. No text outside JSON.\n\nMEMBER: ' + name + ', ' + intake.age + 'yo ' + intake.sex + ', ' + intake.experience_level + '. Equipment: ' + equipment + '. Goal: ' + goal + '. Vision: ' + successVision + '. Session: ' + intake.session_length_mins + 'min. Injuries: ' + (intake.injuries_limitations || 'none') + '.\n\nREP SCHEME: ' + repScheme + '\n\n' + structureGuide + '\n\n' + blockProgression + cardioNote + '\n\nCRITICAL RULES:\n1. Generate EXACTLY ' + days + ' unique training day templates. Count them.\n2. Equipment ' + equipment + ': home_bands/bodyweight_only=zero machines; dumbbells_only=zero barbells/machines.\n3. Never repeat the same exercise variation more than once per session.\n4. Same muscle group needs 2+ days rest between sessions targeting it as primary.\n5. Reflect success vision in exercise selection: ' + successVision + '\n6. For 2-3 day full body programs: hit each major muscle group at least once per week even if not every session.\n7. BAND EXERCISES: resistance bands = minimum 12-15 reps, typically 20-30 reps. Never program bands for low-rep strength work.\n8. BANDS + BODYWEIGHT: If equipment is home_bands, use a MIX of band and bodyweight exercises. Use bands for rows, pull-aparts, curls, deadlifts. Use bodyweight for push-ups, dips, lunges, step-ups, glute bridges, planks, core work. Aim roughly half and half.\n9. COMPOUND CAP: Maximum 3 compound/multi-joint exercises per training day. Full body and bodyweight-only days may have up to 4. Fill remaining slots with isolation and accessory work.\n10. REST TIMES: Prescribe specific rest periods for every exercise based on goal and exercise type. Strength goal: 3-5 min for main compound lifts, 2-3 min for supplemental compounds, 90 sec for accessories. Hypertrophy goal: 2-3 min for main compounds, 60-90 sec for supplemental and isolation. Conditioning goal: 30-60 sec for all exercises. Athletic goal: 2-3 min for power movements, 60-90 sec for accessories. Cardio intervals: use work:rest ratios as prescribed (1:1, 1:2, or 1:3). Format rest as "2 min", "90 sec", "3 min", etc.\n\nOutput ONLY this JSON:\n{"split":"' + splitType + '","weekly_schedule":{"day_1":"string","day_2":"string","day_3":"string","day_4":"string","day_5":"string","day_6":"string","day_7":"string"},"blocks":[{"block":1,"weeks":"1-4","days":[{"day":"string","focus":"string","exercises":[{"name":"string","sets":3,"reps":"string","rir_week1":"string","rir_week2":"string","rir_week3":"string","rir_week4":"string","rest":"string","note":"string"}]}]},{"block":2,"weeks":"5-8","days":[{"day":"string","focus":"string","exercises":[{"name":"string","sets":3,"reps":"string","rir_week1":"string","rir_week2":"string","rir_week3":"string","rir_week4":"string","rest":"string","note":"string"}]}]},{"block":3,"weeks":"9-12","days":[{"day":"string","focus":"string","exercises":[{"name":"string","sets":3,"reps":"string","rir_week1":"string","rir_week2":"string","rir_week3":"string","rir_week4":"string","rest":"string","note":"string"}]}]}]}';
 }
 
-function buildNutritionSleepPrompt(intake, profile, days, proteinTarget, proteinPerMeal) {
+function buildNutritionSleepPrompt(intake, profile, days, proteinTarget, proteinPerMeal, calorieTarget, carbsTraining, carbsRest, fatTraining, fatRest) {
   var name = profile.full_name || profile.first_name || 'Member';
-  var idealWeight = parseFloat(intake.ideal_weight_lbs) || parseFloat(intake.current_weight_lbs) || 180;
   var sleepTime = intake.typical_bedtime || 'not specified';
   var wakeTime = intake.typical_wake_time || 'not specified';
   var sleepIssue = intake.sleep_issue || 'none';
   var caffeine = intake.caffeine_after_noon;
   var phone = intake.phone_in_bedroom;
   var restrictions = (intake.dietary_restrictions && intake.dietary_restrictions.join) ? intake.dietary_restrictions.join(', ') : 'none';
-  var restDays = 7 - days;
-  var minProteinPerMeal = Math.round(proteinPerMeal * 0.7);
+
+  var p5 = Math.round(proteinTarget / 5);
+  var ct5 = Math.round(carbsTraining / 5);
+  var cr5 = Math.round(carbsRest / 5);
+  var ft5 = Math.round(fatTraining / 5);
+  var fr5 = Math.round(fatRest / 5);
+  var cal5 = Math.round(calorieTarget / 5);
 
   var dayNames = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
-  var mealTemplate = function(dayName, type) {
-    return '{"day":"' + dayName + '","type":"' + type + '","breakfast":{"description":"string","protein_g":0,"carbs_g":0,"fat_g":0,"calories":0},"shake":{"description":"string","protein_g":0,"carbs_g":0,"fat_g":0,"calories":0},"lunch":{"description":"string","protein_g":0,"carbs_g":0,"fat_g":0,"calories":0},"dinner":{"description":"string","protein_g":0,"carbs_g":0,"fat_g":0,"calories":0},"dessert":{"description":"string","protein_g":0,"carbs_g":0,"fat_g":0,"calories":0},"day_total":0}';
+  var mealT = function(d, type) {
+    return '{"day":"' + d + '","type":"' + type + '","breakfast":{"description":"string","protein_g":0,"carbs_g":0,"fat_g":0,"calories":0},"shake":{"description":"string","protein_g":0,"carbs_g":0,"fat_g":0,"calories":0},"lunch":{"description":"string","protein_g":0,"carbs_g":0,"fat_g":0,"calories":0},"dinner":{"description":"string","protein_g":0,"carbs_g":0,"fat_g":0,"calories":0},"dessert":{"description":"string","protein_g":0,"carbs_g":0,"fat_g":0,"calories":0},"day_total":0}';
   };
-
   var mealPlanDays = [];
-  for (var d = 0; d < 7; d++) {
-    mealPlanDays.push(mealTemplate(dayNames[d], d < days ? 'training' : 'rest'));
-  }
+  for (var d = 0; d < 7; d++) mealPlanDays.push(mealT(dayNames[d], d < days ? 'training' : 'rest'));
 
-  return 'Generate ONLY the nutrition and sleep sections of a fitness program as valid JSON. No text outside JSON.\n\nMEMBER: ' + name + ', ' + intake.age + 'yo ' + intake.sex + '. Current: ' + intake.current_weight_lbs + 'lbs. Ideal: ' + idealWeight + 'lbs. Goal: ' + intake.goal_primary + '. Diet: ' + (intake.nutrition_approach || 'flexible') + ', restrictions: ' + restrictions + ', avoid: ' + (intake.foods_to_avoid || 'none') + '. Training ' + days + ' days/week. Sleep: ' + intake.avg_sleep_hours + 'hrs, bedtime: ' + sleepTime + ', wake: ' + wakeTime + ', issues: ' + sleepIssue + '. caffeine_after_noon=' + caffeine + ', phone_bedroom=' + phone + '.\n\nNUTRITION RULES:\n1. Mifflin-St Jeor TDEE adjusted for goal (-300-500 cut, +200-300 bulk).\n2. PROTEIN = ' + proteinTarget + 'g total per day. Across 5 meals = ' + proteinPerMeal + 'g each. Every meal must have AT LEAST ' + minProteinPerMeal + 'g protein. 5 meals combined MUST total ' + proteinTarget + 'g.\n3. Training days: high carb, moderate fat. Rest days: low carb, high fat. Same total calories both days.\n4. CALORIE MATH IS NON-NEGOTIABLE: Set daily_calories first. Build every meal so breakfast + shake + lunch + dinner + dessert = daily_calories exactly. day_total must equal this sum. Do not let meal creativity override the calorie target.\n5. Every macro value must be non-zero.\n6. Vary meals across 7 days.\n7. BREAKFAST: Traditional morning food only. Eggs (any style), oatmeal with protein, Greek yogurt parfait, cottage cheese bowl, protein pancakes, avocado toast with eggs. Never plain whey, rice, or chicken breast for breakfast.\n8. SHAKE: Keep shakes simple and good. Use WHEY PROTEIN ONLY (never casein unless lactose intolerant). Simple combos: whey + banana + almond milk, whey + berries + Greek yogurt, whey + peanut butter + banana + milk, whey + oats + honey + almond milk. Max 3-4 ingredients. No exotic combinations.\n\nSLEEP RULES:\n1. Recommend times within 30min of: bedtime=' + sleepTime + ', wake=' + wakeTime + '.\n2. Melatonin ONLY if trouble falling asleep. Issue=' + sleepIssue + '.\n3. Cold exposure 1-3 min only.\n4. Flag caffeine ONLY if true (' + caffeine + '). Flag phone ONLY if true (' + phone + ').\n5. Min 3 items per category.\n\nOutput ONLY this JSON:\n{"nutrition":{"daily_calories":0,"protein_g":' + proteinTarget + ',"carbs_g_training":0,"carbs_g_rest":0,"fat_g_training":0,"fat_g_rest":0,"approach":"string","meal_plan":[' + mealPlanDays.join(',') + ']},"sleep_protocol":{"morning":["string","string","string"],"evening":["string","string","string"],"sleep_environment":["string","string","string"],"priority_fixes":["string","string"]}}';
+  return 'Generate ONLY the nutrition and sleep sections as valid JSON. No text outside JSON.\n\nMEMBER: ' + name + ', ' + intake.age + 'yo ' + intake.sex + '. Goal: ' + intake.goal_primary + '. Diet: ' + (intake.nutrition_approach || 'flexible') + ', restrictions: ' + restrictions + ', avoid: ' + (intake.foods_to_avoid || 'none') + '. Sleep: ' + intake.avg_sleep_hours + 'hrs, bedtime: ' + sleepTime + ', wake: ' + wakeTime + ', issues: ' + sleepIssue + '. caffeine_after_noon=' + caffeine + ', phone_bedroom=' + phone + '.\n\nTHESE ARE THE EXACT TARGETS - DO NOT CHANGE THEM:\ndaily_calories=' + calorieTarget + ', protein_g=' + proteinTarget + ', carbs_g_training=' + carbsTraining + ', carbs_g_rest=' + carbsRest + ', fat_g_training=' + fatTraining + ', fat_g_rest=' + fatRest + '\n\nPER MEAL (5 meals per day):\nTraining day: ~' + p5 + 'g protein, ~' + ct5 + 'g carbs, ~' + ft5 + 'g fat, ~' + cal5 + ' cal each\nRest day: ~' + p5 + 'g protein, ~' + cr5 + 'g carbs, ~' + fr5 + 'g fat, ~' + cal5 + ' cal each\n\nRULES:\n1. Use the exact numbers above for daily_calories and all macro fields.\n2. Each day: 5 meals must sum to exactly ' + calorieTarget + ' cal and ' + proteinTarget + 'g protein.\n3. Every macro value must be non-zero.\n4. Vary meals across 7 days.\n5. BREAKFAST: Traditional morning food — eggs, oatmeal with protein, Greek yogurt parfait, cottage cheese bowl, protein pancakes. Never plain whey or chicken.\n6. SHAKE: Whey only, max 4 ingredients. Examples: whey+banana+almond milk, whey+berries+Greek yogurt, whey+peanut butter+banana+milk, whey+oats+honey+milk.\n7. LUNCH/DINNER: High protein whole food meals — chicken, beef, salmon, turkey, eggs.\n8. DESSERT: Light protein option — Greek yogurt with berries, cottage cheese with honey, protein mug cake.\n\nSLEEP:\n1. Recommend times within 30min of: bedtime=' + sleepTime + ', wake=' + wakeTime + '.\n2. Melatonin ONLY if trouble falling asleep (' + sleepIssue + ').\n3. Cold exposure 1-3 min only.\n4. Flag caffeine only if true (' + caffeine + '). Flag phone only if true (' + phone + ').\n5. Min 3 items per category.\n\nOutput ONLY this JSON:\n{"nutrition":{"daily_calories":' + calorieTarget + ',"protein_g":' + proteinTarget + ',"carbs_g_training":' + carbsTraining + ',"carbs_g_rest":' + carbsRest + ',"fat_g_training":' + fatTraining + ',"fat_g_rest":' + fatRest + ',"approach":"string","meal_plan":[' + mealPlanDays.join(',') + ']},"sleep_protocol":{"morning":["string","string","string"],"evening":["string","string","string"],"sleep_environment":["string","string","string"],"priority_fixes":["string","string"]}}';
 }
+
 
 function repairJson(str) {
   var opens = [];
@@ -150,11 +152,55 @@ export default async function handler(req, res) {
     if (profileRes.data) profile = profileRes.data;
 
     var days = parseInt(intake.training_days_per_week) || 4;
-    var idealWeight = parseFloat(intake.ideal_weight_lbs) || parseFloat(intake.current_weight_lbs) || 180;
+    var currentWeight = parseFloat(intake.current_weight_lbs) || 180;
+    var idealWeight = parseFloat(intake.ideal_weight_lbs) || currentWeight;
     var proteinTarget = Math.round(idealWeight);
     var proteinPerMeal = Math.round(proteinTarget / 5);
 
+    // Mifflin-St Jeor TDEE calculation
+    var weightKg = currentWeight * 0.453592;
+    var heightFt = parseFloat(intake.height_ft) || 5;
+    var heightIn = parseFloat(intake.height_in) || 10;
+    var heightCm = ((heightFt * 12) + heightIn) * 2.54;
+    var age = parseFloat(intake.age) || 30;
+    var sex = intake.sex || 'male';
+
+    var bmr;
+    if (sex === 'female') {
+      bmr = (10 * weightKg) + (6.25 * heightCm) - (5 * age) - 161;
+    } else {
+      bmr = (10 * weightKg) + (6.25 * heightCm) - (5 * age) + 5;
+    }
+
+    // Activity multiplier based on training days
+    var activityMultiplier;
+    if (days <= 2) activityMultiplier = 1.375;
+    else if (days <= 3) activityMultiplier = 1.465;
+    else if (days <= 4) activityMultiplier = 1.55;
+    else if (days <= 5) activityMultiplier = 1.637;
+    else activityMultiplier = 1.725;
+
+    var tdee = Math.round(bmr * activityMultiplier);
+
+    // Adjust for goal
+    var calorieTarget;
     var goal = intake.goal_primary || 'build_muscle';
+    if (goal === 'lose_fat') calorieTarget = tdee - 400;
+    else if (goal === 'build_muscle' || goal === 'build_strength') calorieTarget = tdee + 300;
+    else if (goal === 'conditioning' || goal === 'general_health') calorieTarget = tdee;
+    else calorieTarget = tdee + 200;
+
+    // Macro split
+    var proteinCals = proteinTarget * 4;
+    var remainingCals = calorieTarget - proteinCals;
+
+    // Training day: 50% remaining to carbs, 50% to fat
+    // Rest day: 30% to carbs, 70% to fat (same total calories)
+    var carbsTraining = Math.round((remainingCals * 0.55) / 4);
+    var carbsRest = Math.round((remainingCals * 0.30) / 4);
+    var fatTraining = Math.round((remainingCals * 0.45) / 9);
+    var fatRest = Math.round((remainingCals * 0.70) / 9);
+
     var goalSecondary = intake.goal_secondary || '';
     var conditioningGoals = ['conditioning', 'general_health', 'lose_fat'];
     var isConditioningFocused = conditioningGoals.indexOf(goal) !== -1 || conditioningGoals.indexOf(goalSecondary) !== -1;
@@ -187,7 +233,7 @@ export default async function handler(req, res) {
 
     // Run both calls in parallel
     var trainingPrompt = buildTrainingPrompt(intake, profile, days, splitType, splitDesc);
-    var nutritionPrompt = buildNutritionSleepPrompt(intake, profile, days, proteinTarget, proteinPerMeal);
+    var nutritionPrompt = buildNutritionSleepPrompt(intake, profile, days, proteinTarget, proteinPerMeal, calorieTarget, carbsTraining, carbsRest, fatTraining, fatRest);
 
     var results = await Promise.all([
       callClaude(trainingPrompt),
