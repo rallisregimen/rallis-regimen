@@ -44,6 +44,102 @@ function buildTrainingPrompt(intake, profile, days, splitType, splitDesc) {
   return 'Generate ONLY the training section of a fitness program as valid JSON. No text outside JSON.\n\nMEMBER: ' + name + ', ' + intake.age + 'yo ' + intake.sex + ', ' + intake.experience_level + '. Equipment: ' + equipment + '. Goal: ' + goal + '. Vision: ' + successVision + '. Session: ' + intake.session_length_mins + 'min. Injuries: ' + (intake.injuries_limitations || 'none') + '.\n\nRALLIS REGIMEN TRAINING PHILOSOPHY:\n1. STABILITY-POWER PRINCIPLE: More stability = more force safely generated. Never load unstable movements heavily. Barbell squat (high stability) = max strength loads. Bulgarian split squat (moderate) = moderate hypertrophy loads. Pistol squat (low stability) = light loads, movement quality only.\n2. ADAPTATION HIERARCHY within a session: Speed/Power first, then Strength, then Hypertrophy, then Endurance. Never pre-exhaust before strength or power work.\n3. EXERCISE INTENTION BY TYPE:\n   - Strength: Heavy, no missed reps. 3+ min rest. "Heavy weight, absolutely no missed reps."\n   - Hypertrophy: Control full ROM, mind-muscle connection. Slow eccentric. 60-90 sec rest for isolation, 2-3 min for compounds.\n   - Endurance: Higher reps 15-20+, moderate weight, never approaching failure.\n   - Power/Dynamic: Move the weight FAST. Should not be a struggle to complete.\n4. RIR PROGRESSION: W1=3-4, W2=2-3, W3=1-2, W4=7-8 (deload).\n5. EXERCISE CUES to include in notes: Back squat — "neutral spine, control throughout". RDL — "slight bend in knee, flat back, slow 2s tempo". Hip thrust — "tuck chin, squeeze glutes, do not arch back". Goblet squat — "feet flat, chest up, push knees out". Lat pulldown — "drive elbows down, squeeze at bottom".\n\n' + repScheme + '\n\n' + structureGuide + '\n\n' + blockProgression + cardioNote + '\n\nCRITICAL RULES:\n1. Generate EXACTLY ' + days + ' unique training day templates. Count them.\n2. Equipment ' + equipment + ': home_bands/bodyweight_only=zero machines; dumbbells_only=zero barbells/machines.\n3. Never repeat the same exercise variation more than once per session.\n4. Same muscle group needs 2+ days rest between sessions targeting it as primary.\n5. Reflect success vision in exercise selection: ' + successVision + '\n6. For 2-3 day full body programs: hit each major muscle group at least once per week even if not every session.\n7. BAND EXERCISES: resistance bands = minimum 12-15 reps, typically 20-30 reps. Never program bands for low-rep strength work.\n8. BANDS + BODYWEIGHT: If equipment is home_bands, use a MIX of band and bodyweight exercises. Use bands for rows, pull-aparts, curls, deadlifts. Use bodyweight for push-ups, dips, lunges, step-ups, glute bridges, planks, core work. Aim roughly half and half.\n9. COMPOUND CAP: Maximum 3 compound/multi-joint exercises per training day. Full body and bodyweight-only days may have up to 4. Fill remaining slots with isolation and accessory work.\n10. REST TIMES: Prescribe specific rest periods for every exercise based on goal and exercise type. Strength goal: 3-5 min for main compound lifts, 2-3 min for supplemental compounds, 90 sec for accessories. Hypertrophy goal: 2-3 min for main compounds, 60-90 sec for supplemental and isolation. Conditioning goal: 30-60 sec for all exercises. Athletic goal: 2-3 min for power movements, 60-90 sec for accessories. Cardio intervals: use work:rest ratios as prescribed (1:1, 1:2, or 1:3). Format rest as "2 min", "90 sec", "3 min", etc.\n\nOutput ONLY this JSON:\n{"split":"' + splitType + '","weekly_schedule":{"day_1":"string","day_2":"string","day_3":"string","day_4":"string","day_5":"string","day_6":"string","day_7":"string"},"blocks":[{"block":1,"weeks":"1-4","days":[{"day":"string","focus":"string","exercises":[{"name":"string","sets":3,"reps":"string","rir_week1":"string","rir_week2":"string","rir_week3":"string","rir_week4":"string","rest":"string","note":"string"}]}]},{"block":2,"weeks":"5-8","days":[{"day":"string","focus":"string","exercises":[{"name":"string","sets":3,"reps":"string","rir_week1":"string","rir_week2":"string","rir_week3":"string","rir_week4":"string","rest":"string","note":"string"}]}]},{"block":3,"weeks":"9-12","days":[{"day":"string","focus":"string","exercises":[{"name":"string","sets":3,"reps":"string","rir_week1":"string","rir_week2":"string","rir_week3":"string","rir_week4":"string","rest":"string","note":"string"}]}]}]}';
 }
 
+// INGREDIENT LOOKUP TABLE — [protein_g, carbs_g, fat_g] per unit
+// Unit is defined in the key name (per egg, per oz, per cup, per scoop, per tbsp, per link, per slice, per medium)
+var INGREDIENTS = {
+  // protein sources — per oz unless noted
+  'egg':              { unit:'each',  p:6,    c:0.4,  f:5   },
+  'egg_white':        { unit:'each',  p:3.6,  c:0.2,  f:0   },
+  'chicken_breast':   { unit:'oz',    p:8.5,  c:0,    f:0.6 },
+  'turkey_breast':    { unit:'oz',    p:8.0,  c:0,    f:0.7 },
+  'salmon':           { unit:'oz',    p:7.0,  c:0,    f:2.2 },
+  'ground_beef_90':   { unit:'oz',    p:7.0,  c:0,    f:2.5 },
+  'tuna_canned':      { unit:'oz',    p:6.6,  c:0,    f:0.3 },
+  'shrimp':           { unit:'oz',    p:6.0,  c:0,    f:0.3 },
+  'turkey_sausage':   { unit:'link',  p:7.0,  c:0.5,  f:4.0 },
+  'chicken_sausage':  { unit:'link',  p:6.0,  c:1.0,  f:3.5 },
+  'lean_bacon':       { unit:'slice', p:3.0,  c:0,    f:2.5 },
+  'whey_scoop':       { unit:'scoop', p:24,   c:3,    f:1   },
+  'greek_yogurt':     { unit:'cup',   p:20,   c:8,    f:5   },
+  'cottage_cheese':   { unit:'cup',   p:25,   c:6,    f:5   },
+  // carb sources
+  'oats':             { unit:'cup',   p:10,   c:54,   f:5   },
+  'oats_half':        { unit:'half',  p:5,    c:27,   f:2.5 },
+  'brown_rice':       { unit:'cup',   p:5,    c:45,   f:2   },
+  'sweet_potato':     { unit:'med',   p:2,    c:26,   f:0   },
+  'white_potato':     { unit:'med',   p:3,    c:37,   f:0   },
+  'bread_wg':         { unit:'slice', p:4,    c:15,   f:1   },
+  'banana':           { unit:'each',  p:1,    c:27,   f:0   },
+  'berries':          { unit:'cup',   p:1,    c:14,   f:0.5 },
+  'apple':            { unit:'each',  p:0.5,  c:25,   f:0   },
+  'honey':            { unit:'tbsp',  p:0,    c:17,   f:0   },
+  'granola':          { unit:'qcup',  p:3,    c:20,   f:4   },
+  // fat sources
+  'avocado_half':     { unit:'half',  p:1,    c:6,    f:11  },
+  'peanut_butter':    { unit:'tbsp',  p:3.5,  c:3.5,  f:8   },
+  'almond_butter':    { unit:'tbsp',  p:3,    c:3,    f:9   },
+  'olive_oil':        { unit:'tbsp',  p:0,    c:0,    f:14  },
+  'whole_milk':       { unit:'cup',   p:8,    c:12,   f:8   },
+  'almond_milk':      { unit:'cup',   p:1,    c:1,    f:3   },
+  'cheese_oz':        { unit:'oz',    p:7,    c:0.5,  f:9   },
+  'spinach':          { unit:'cup',   p:1,    c:1,    f:0   },
+  'broccoli':         { unit:'cup',   p:2.5,  c:6,    f:0   },
+  'asparagus':        { unit:'cup',   p:2.5,  c:4,    f:0   }
+};
+
+function calcMacros(ingredients) {
+  // ingredients is array of {id, qty}
+  var p = 0, c = 0, f = 0;
+  ingredients.forEach(function(ing) {
+    var item = INGREDIENTS[ing.id];
+    if (!item) return;
+    p += item.p * ing.qty;
+    c += item.c * ing.qty;
+    f += item.f * ing.qty;
+  });
+  return {
+    protein_g: Math.round(p),
+    carbs_g:   Math.round(c),
+    fat_g:     Math.round(f),
+    calories:  Math.round(p*4 + c*4 + f*9)
+  };
+}
+
+function buildDescription(ingredients) {
+  var unitLabels = {
+    'each':'', 'oz':'oz', 'cup':'cup', 'scoop':'scoop', 'tbsp':'tbsp',
+    'link':'link', 'slice':'slice', 'med':'medium', 'half':'', 'qcup':'1/4 cup', 'half':'1/2'
+  };
+  var names = {
+    'egg':'egg','egg_white':'egg white','chicken_breast':'chicken breast',
+    'turkey_breast':'turkey breast','salmon':'salmon','ground_beef_90':'ground beef (90/10)',
+    'tuna_canned':'canned tuna','shrimp':'shrimp','turkey_sausage':'turkey sausage link',
+    'chicken_sausage':'chicken sausage link','lean_bacon':'slice lean bacon',
+    'whey_scoop':'scoop whey protein','greek_yogurt':'Greek yogurt',
+    'cottage_cheese':'cottage cheese','oats':'cup oats','oats_half':'1/2 cup oats',
+    'brown_rice':'cup cooked brown rice','sweet_potato':'medium sweet potato',
+    'white_potato':'medium white potato','bread_wg':'slice whole grain bread',
+    'banana':'banana','berries':'cup berries','apple':'apple','honey':'tbsp honey',
+    'granola':'1/4 cup granola','avocado_half':'1/2 avocado',
+    'peanut_butter':'tbsp peanut butter','almond_butter':'tbsp almond butter',
+    'olive_oil':'tbsp olive oil','whole_milk':'cup whole milk',
+    'almond_milk':'cup almond milk','cheese_oz':'oz cheese',
+    'spinach':'cup spinach','broccoli':'cup broccoli','asparagus':'cup asparagus'
+  };
+  return ingredients.map(function(ing) {
+    var qty = ing.qty;
+    var nm = names[ing.id] || ing.id;
+    var item = INGREDIENTS[ing.id];
+    if (!item) return qty + ' ' + nm;
+    // format nicely
+    if (item.unit === 'each' || item.unit === 'half' || item.unit === 'med') {
+      return qty + ' ' + nm;
+    }
+    return qty + ' ' + nm;
+  }).join(' + ');
+}
+
+
 function buildNutritionSleepPrompt(intake, profile, days, proteinTarget, calorieTarget, carbsTraining, carbsRest, fatTraining, fatRest) {
   var name = profile.full_name || profile.first_name || 'Member';
   var sleepTime = intake.typical_bedtime || 'not specified';
@@ -54,85 +150,62 @@ function buildNutritionSleepPrompt(intake, profile, days, proteinTarget, calorie
   var restrictions = (intake.dietary_restrictions && intake.dietary_restrictions.join) ? intake.dietary_restrictions.join(', ') : 'none';
   var foodsToAvoid = intake.foods_to_avoid || 'none';
 
-  // Pre-assign protein per meal — Claude builds food to match these exact targets
-  // breakfast 20%, shake 18%, lunch 27%, dinner 28%, dessert 7%
+  // Per-meal protein targets
   var pBreakfast = Math.round(proteinTarget * 0.20);
   var pShake     = Math.round(proteinTarget * 0.18);
   var pLunch     = Math.round(proteinTarget * 0.27);
   var pDinner    = Math.round(proteinTarget * 0.28);
   var pDessert   = proteinTarget - pBreakfast - pShake - pLunch - pDinner;
 
-  // Carb targets per meal (training day)
-  var cBT = Math.round(carbsTraining * 0.30); // breakfast
-  var cST = Math.round(carbsTraining * 0.25); // shake
-  var cLT = Math.round(carbsTraining * 0.25); // lunch
-  var cDT = Math.round(carbsTraining * 0.15); // dinner
-  var cDeT = carbsTraining - cBT - cST - cLT - cDT; // dessert
-
-  // Carb targets per meal (rest day)
-  var cBR = Math.round(carbsRest * 0.25);
-  var cSR = Math.round(carbsRest * 0.20);
-  var cLR = Math.round(carbsRest * 0.25);
-  var cDR = Math.round(carbsRest * 0.20);
-  var cDeR = carbsRest - cBR - cSR - cLR - cDR;
-
-  // Fat targets per meal (training day)
-  var fBT = Math.round(fatTraining * 0.25);
-  var fST = Math.round(fatTraining * 0.15);
-  var fLT = Math.round(fatTraining * 0.20);
-  var fDT = Math.round(fatTraining * 0.30);
-  var fDeT = fatTraining - fBT - fST - fLT - fDT;
-
-  // Fat targets per meal (rest day — higher fat overall)
-  var fBR = Math.round(fatRest * 0.25);
-  var fSR = Math.round(fatRest * 0.15);
-  var fLR = Math.round(fatRest * 0.22);
-  var fDR = Math.round(fatRest * 0.30);
-  var fDeR = fatRest - fBR - fSR - fLR - fDR;
-
   var dayNames = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
 
-  // Build per-meal targets string for each day
-  var mealTargetLines = '';
-  for (var d = 0; d < 7; d++) {
-    var isT = d < days;
-    var dayType = isT ? 'TRAINING' : 'REST';
-    mealTargetLines += dayNames[d] + ' (' + dayType + '): breakfast=' + pBreakfast + 'p/' + (isT?cBT:cBR) + 'c/' + (isT?fBT:fBR) + 'f, shake=' + pShake + 'p/' + (isT?cST:cSR) + 'c/' + (isT?fST:fSR) + 'f, lunch=' + pLunch + 'p/' + (isT?cLT:cLR) + 'c/' + (isT?fLT:fLR) + 'f, dinner=' + pDinner + 'p/' + (isT?cDT:cDR) + 'c/' + (isT?fDT:fDR) + 'f, dessert=' + pDessert + 'p/' + (isT?cDeT:cDeR) + 'c/' + (isT?fDeT:fDeR) + 'f\n';
-  }
-
-  // Build JSON template
-  var mealT = function(dayName, type, pB, cB, fB, pS, cS, fS, pL, cL, fL, pD, cD, fD, pDe, cDe, fDe) {
-    var calB = (pB*4)+(cB*4)+(fB*9);
-    var calS = (pS*4)+(cS*4)+(fS*9);
-    var calL = (pL*4)+(cL*4)+(fL*9);
-    var calD = (pD*4)+(cD*4)+(fD*9);
-    var calDe = (pDe*4)+(cDe*4)+(fDe*9);
-    var total = calB+calS+calL+calD+calDe;
-    return '{"day":"' + dayName + '","type":"' + type + '",' +
-      '"breakfast":{"description":"string","protein_g":' + pB + ',"carbs_g":' + cB + ',"fat_g":' + fB + ',"calories":' + calB + '},' +
-      '"shake":{"description":"string","protein_g":' + pS + ',"carbs_g":' + cS + ',"fat_g":' + fS + ',"calories":' + calS + '},' +
-      '"lunch":{"description":"string","protein_g":' + pL + ',"carbs_g":' + cL + ',"fat_g":' + fL + ',"calories":' + calL + '},' +
-      '"dinner":{"description":"string","protein_g":' + pD + ',"carbs_g":' + cD + ',"fat_g":' + fD + ',"calories":' + calD + '},' +
-      '"dessert":{"description":"string","protein_g":' + pDe + ',"carbs_g":' + cDe + ',"fat_g":' + fDe + ',"calories":' + calDe + '},' +
-      '"day_total":' + total + '}';
+  // Build example day templates Claude will overwrite with its ingredient picks
+  var dayTemplate = function(d, type) {
+    return '{"day":"' + d + '","type":"' + type + '","breakfast":[{"id":"egg","qty":4}],"shake":[{"id":"whey_scoop","qty":1}],"lunch":[{"id":"chicken_breast","qty":6}],"dinner":[{"id":"salmon","qty":6}],"dessert":[{"id":"greek_yogurt","qty":1}]}';
   };
+  var dayTemplates = [];
+  for (var d = 0; d < 7; d++) dayTemplates.push(dayTemplate(dayNames[d], d < days ? 'training' : 'rest'));
 
-  var mealPlanDays = [];
-  for (var d = 0; d < 7; d++) {
-    var isT = d < days;
-    mealPlanDays.push(mealT(
-      dayNames[d], isT ? 'training' : 'rest',
-      pBreakfast, isT?cBT:cBR, isT?fBT:fBR,
-      pShake, isT?cST:cSR, isT?fST:fSR,
-      pLunch, isT?cLT:cLR, isT?fLT:fLR,
-      pDinner, isT?cDT:cDR, isT?fDT:fDR,
-      pDessert, isT?cDeT:cDeR, isT?fDeT:fDeR
-    ));
-  }
-
-  return 'Generate ONLY the description fields in this meal plan JSON and the sleep protocol. Do not change any numbers — all macros and calories are pre-calculated. Replace only the "string" description fields with real food.\n\nMEMBER: ' + name + ', ' + intake.age + 'yo ' + intake.sex + '. Goal: ' + intake.goal_primary + '. Restrictions: ' + restrictions + '. Avoid: ' + foodsToAvoid + '.\n\nPER-MEAL PROTEIN/CARB/FAT TARGETS (p/c/f in grams):\n' + mealTargetLines + '\nDESIGN EACH MEAL TO HIT ITS PROTEIN TARGET. Use larger portions when needed:\n- ' + pBreakfast + 'g protein at breakfast = ' + Math.round(pBreakfast/6) + ' eggs, OR ' + Math.round(pBreakfast/6) + ' eggs + turkey sausage, OR Greek yogurt + eggs combo\n- ' + pShake + 'g protein in shake = ' + Math.round(pShake/24) + ' scoops whey + milk/yogurt\n- ' + pLunch + 'g protein at lunch = ' + Math.round(pLunch/8.5) + 'oz chicken breast, or ' + Math.round(pLunch/8) + 'oz salmon\n- ' + pDinner + 'g protein at dinner = ' + Math.round(pDinner/8.5) + 'oz lean meat or fish\n\nMEAL RULES:\n1. BREAKFAST: Eggs and/or Greek yogurt required. Good options: eggs + turkey sausage + oats, Greek yogurt + eggs + fruit, protein pancakes + eggs. No OJ — use whole fruit, oats, or toast for carbs.\n2. SHAKE: Whey only. 1-2 scoops. Classic flavors only: chocolate, vanilla, strawberry, banana. Examples: "2 scoops chocolate whey + 1 banana + 1 cup whole milk + 1 tbsp peanut butter"\n3. LUNCH: High protein main — chicken, salmon, turkey, beef, tuna. Include starchy carb on training days (rice, potato, sweet potato). Skip starch on rest days, add avocado or olive oil.\n4. DINNER: High protein main. Lower carb than lunch. More fat on rest days.\n5. DESSERT: Light protein — Greek yogurt with fruit, cottage cheese with honey, whey + yogurt mix.\n6. Vary meals across the 7 days — no identical meals on back-to-back days.\n7. Include quantities: "6oz grilled chicken" not "chicken".\n\nSLEEP PROTOCOL - one consistent protocol, same values every time:\nBedtime: within 30min of ' + sleepTime + '. Wake: within 30min of ' + wakeTime + '. Issue: ' + sleepIssue + '.\nMorning: get up immediately, 10-30 min outdoor sunlight, early movement, cold shower 1-3 min if sleep issues.\nEvening: lower lights after sunset, limit electronics 1-2hr before bed, hot bath/shower 60-90min before bed, stretching, slow exhale breathing, no large meals 2-3hr before bed.\nEnvironment: 60-68F, complete darkness, fan.\nSupplements if sleep issues: magnesium glycinate or apigenin. NEVER melatonin.\n\nOutput ONLY this JSON (fill in the description fields, keep all numbers exactly as shown):\n{"nutrition":{"daily_calories":' + calorieTarget + ',"protein_g":' + proteinTarget + ',"carbs_g_training":' + carbsTraining + ',"carbs_g_rest":' + carbsRest + ',"fat_g_training":' + fatTraining + ',"fat_g_rest":' + fatRest + ',"approach":"Carb cycling — high carb training days, low carb rest days","meal_plan":[' + mealPlanDays.join(',') + ']},"sleep_protocol":{"morning":["string","string","string"],"evening":["string","string","string"],"sleep_environment":["string","string","string"],"priority_fixes":["string","string"]}}';
+  return 'Choose ingredients for a 7-day meal plan. Return ONLY valid JSON, no other text.\n\nMEMBER: ' + name + ', ' + intake.age + 'yo ' + intake.sex + '. Goal: ' + intake.goal_primary + '. Restrictions: ' + restrictions + '. Avoid: ' + foodsToAvoid + '.\n\nDAILY PROTEIN TARGET: ' + proteinTarget + 'g\nPER-MEAL PROTEIN TARGETS:\n  breakfast: ~' + pBreakfast + 'g\n  shake: ~' + pShake + 'g\n  lunch: ~' + pLunch + 'g\n  dinner: ~' + pDinner + 'g\n  dessert: ~' + pDessert + 'g\n\nAVAILABLE INGREDIENT IDs (macros per unit in parentheses, format p/c/f):\n  egg (each): 6p/0c/5f\n  egg_white (each): 4p/0c/0f\n  chicken_breast (oz): 8.5p/0c/0.6f\n  turkey_breast (oz): 8p/0c/0.7f\n  salmon (oz): 7p/0c/2.2f\n  ground_beef_90 (oz): 7p/0c/2.5f\n  tuna_canned (oz): 6.6p/0c/0.3f\n  shrimp (oz): 6p/0c/0.3f\n  turkey_sausage (link): 7p/0.5c/4f\n  chicken_sausage (link): 6p/1c/3.5f\n  lean_bacon (slice): 3p/0c/2.5f\n  whey_scoop (scoop): 24p/3c/1f\n  greek_yogurt (cup): 20p/8c/5f\n  cottage_cheese (cup): 25p/6c/5f\n  oats (cup): 10p/54c/5f\n  oats_half (half): 5p/27c/2.5f\n  brown_rice (cup): 5p/45c/2f\n  sweet_potato (med): 2p/26c/0f\n  white_potato (med): 3p/37c/0f\n  bread_wg (slice): 4p/15c/1f\n  banana (each): 1p/27c/0f\n  berries (cup): 1p/14c/0.5f\n  apple (each): 0.5p/25c/0f\n  honey (tbsp): 0p/17c/0f\n  granola (qcup): 3p/20c/4f\n  avocado_half (half): 1p/6c/11f\n  peanut_butter (tbsp): 3.5p/3.5c/8f\n  almond_butter (tbsp): 3p/3c/9f\n  olive_oil (tbsp): 0p/0c/14f\n  whole_milk (cup): 8p/12c/8f\n  almond_milk (cup): 1p/1c/3f\n  cheese_oz (oz): 7p/0.5c/9f\n  spinach (cup): 1p/1c/0f\n  broccoli (cup): 2.5p/6c/0f\n  asparagus (cup): 2.5p/4c/0f\n\nRULES:\n1. For each meal slot output an array of {id, qty} objects. qty is a number.\n2. USE ENOUGH QUANTITY to hit protein targets. Lunch needs ' + pLunch + 'g protein = chicken_breast qty ' + Math.round(pLunch/8.5) + ' oz, or salmon qty ' + Math.round(pLunch/7) + ' oz. Dinner needs ' + pDinner + 'g = beef qty ' + Math.round(pDinner/7) + ' oz, etc. Do not under-portion.\n3. VARY every day: different protein sources, different carbs. No identical days.\n4. BREAKFAST: include eggs and/or greek_yogurt. Can add turkey_sausage, chicken_sausage, or lean_bacon. Training days add oats or bread_wg. No OJ.\n5. SHAKE: always whey_scoop (qty 1-2) + liquid (whole_milk or almond_milk) + fruit or nut butter.\n6. LUNCH: big protein (chicken_breast, salmon, turkey_breast, ground_beef_90, tuna_canned). Training day add brown_rice or sweet_potato. Rest day add avocado_half or olive_oil instead.\n7. DINNER: big protein, lower carb than lunch. Rest days: more fat, no starch.\n8. DESSERT: greek_yogurt or cottage_cheese base + berries + honey or granola.\n\nSLEEP PROTOCOL — one consistent protocol:\nBedtime: ' + sleepTime + '. Wake: ' + wakeTime + '. Issue: ' + sleepIssue + '. caffeine_after_noon=' + caffeine + ', phone_in_bedroom=' + phone + '.\nMorning: get up immediately, outdoor sunlight 10-30 min, early movement, cold shower 1-3 min morning only if sleep issues.\nEvening: lower lights after sunset, limit electronics 1-2hr before bed, hot bath/shower 60-90min before bed, stretching, slow exhale breathing, no large meals 2-3hr before bed.\nEnvironment: 60-68F, complete darkness, fan.\nSupplements if sleep issues: magnesium glycinate or apigenin. NEVER melatonin.\n\nOutput ONLY this JSON (replace the example arrays with your actual ingredient picks):\n{"meal_ingredients":[' + dayTemplates.join(',') + '],"sleep_protocol":{"morning":["string","string","string"],"evening":["string","string","string"],"sleep_environment":["string","string","string"],"priority_fixes":["string","string"]}}';
 }
 
+// Convert Claude ingredient picks into full meal plan with JS-calculated macros
+function buildMealPlanFromIngredients(mealIngredients, days, proteinTarget, calorieTarget) {
+  var dayNames = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
+  var mealKeys = ['breakfast', 'shake', 'lunch', 'dinner', 'dessert'];
+
+  return mealIngredients.map(function(day, i) {
+    var isTraining = i < days;
+    var meals = {};
+    var dayTotal = 0;
+
+    mealKeys.forEach(function(meal) {
+      var ingredients = day[meal] || [];
+      if (!Array.isArray(ingredients)) ingredients = [];
+      var macros = calcMacros(ingredients);
+      var desc = buildDescription(ingredients);
+      meals[meal] = {
+        description: desc,
+        protein_g:   macros.protein_g,
+        carbs_g:     macros.carbs_g,
+        fat_g:       macros.fat_g,
+        calories:    macros.calories
+      };
+      dayTotal += macros.calories;
+    });
+
+    return {
+      day:       day.day || dayNames[i],
+      type:      isTraining ? 'training' : 'rest',
+      breakfast: meals.breakfast,
+      shake:     meals.shake,
+      lunch:     meals.lunch,
+      dinner:    meals.dinner,
+      dessert:   meals.dessert,
+      day_total: dayTotal
+    };
+  });
+}
 
 
 
@@ -306,7 +379,27 @@ export default async function handler(req, res) {
     ]);
 
     var trainingData = cleanAndParse(results[0]);
-    var nutritionData = cleanAndParse(results[1]);
+    var nutritionRaw = cleanAndParse(results[1]);
+
+    // JS calculates all macros from Claude's ingredient picks — no Claude math
+    var mealPlan = buildMealPlanFromIngredients(
+      nutritionRaw.meal_ingredients || [],
+      days, proteinTarget, calorieTarget
+    );
+
+    var nutritionData = {
+      nutrition: {
+        daily_calories:    calorieTarget,
+        protein_g:         proteinTarget,
+        carbs_g_training:  carbsTraining,
+        carbs_g_rest:      carbsRest,
+        fat_g_training:    fatTraining,
+        fat_g_rest:        fatRest,
+        approach:          'Carb cycling — high carb training days, low carb rest days',
+        meal_plan:         mealPlan
+      },
+      sleep_protocol: nutritionRaw.sleep_protocol || {}
+    };
 
     var updateData = {
       program_name: intake.goal_primary + ' Program - ' + splitType,
