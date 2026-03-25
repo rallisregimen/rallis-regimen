@@ -53,12 +53,105 @@ function buildNutritionSleepPrompt(intake, profile, days, proteinTarget, protein
   var phone = intake.phone_in_bedroom;
   var restrictions = (intake.dietary_restrictions && intake.dietary_restrictions.join) ? intake.dietary_restrictions.join(', ') : 'none';
 
-  var p5 = Math.round(proteinTarget / 5);
-  var ct5 = Math.round(carbsTraining / 5);
-  var cr5 = Math.round(carbsRest / 5);
-  var ft5 = Math.round(fatTraining / 5);
-  var fr5 = Math.round(fatRest / 5);
-  var cal5 = Math.round(calorieTarget / 5);
+  var dayNames = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
+  var mealDescTemplate = function(d, type) {
+    return '{"day":"' + d + '","type":"' + type + '","breakfast":"string","shake":"string","lunch":"string","dinner":"string","dessert":"string"}';
+  };
+  var mealDescDays = [];
+  for (var d = 0; d < 7; d++) mealDescDays.push(mealDescTemplate(dayNames[d], d < days ? 'training' : 'rest'));
+
+  return 'Generate ONLY meal descriptions and sleep protocol as valid JSON. No text outside JSON. NO NUMBERS — descriptions only.\n\nMEMBER: ' + name + ', ' + intake.age + 'yo ' + intake.sex + '. Goal: ' + intake.goal_primary + '. Diet: ' + (intake.nutrition_approach || 'flexible') + ', restrictions: ' + restrictions + ', avoid: ' + (intake.foods_to_avoid || 'none') + '.\n\nMEAL RULES:\n1. Write descriptions ONLY — no macro numbers, no calorie counts. Those are calculated separately.\n2. Every description must include specific quantities: "3 large eggs scrambled + 2 slices whole grain toast + 1/2 avocado"\n3. Every meal must contain a complete protein source: eggs, Greek yogurt, cottage cheese, chicken, beef, salmon, turkey, tuna, or whey.\n4. BREAKFAST: Anchor on eggs or Greek yogurt. Never plain protein shake or chicken for breakfast.\n5. SHAKE: Whey only, max 4 ingredients, classic flavor. Examples: "1 scoop chocolate whey + 1 banana + 1 cup whole milk + 1 tbsp peanut butter"\n6. LUNCH/DINNER: High protein with measured quantities. "6oz grilled chicken breast + 1 cup brown rice + 1 cup steamed broccoli"\n7. DESSERT: Light protein. "3/4 cup Greek yogurt + 1/2 cup berries + 1 tsp honey"\n8. Vary meals — no identical meals on consecutive days.\n9. Training days: include starchy carbs (oats, rice, potato, sweet potato). Rest days: less starch, more fat sources.\n\nSLEEP PROTOCOL - ONE consistent protocol, same values every time:\nBedtime: within 30min of ' + sleepTime + '. Wake: within 30min of ' + wakeTime + '. Sleep issue: ' + sleepIssue + '. caffeine_after_noon=' + caffeine + ', phone_in_bedroom=' + phone + '.\nMORNING: get up immediately, sunlight 10-30 min, early movement. Cold shower 1-3 min morning only if sleep issues.\nEVENING: lower lights after sunset, no overhead lights, limit electronics 1-2hr before bed, hot bath/shower 60-90min before bed, stretching, slow exhale breathing.\nENVIRONMENT: 60-68F, complete darkness, fan for airflow.\nSUPPLEMENTS if sleep issues: magnesium glycinate or apigenin. NEVER melatonin.\n\nOutput ONLY this JSON:\n{"meal_descriptions":[' + mealDescDays.join(',') + '],"sleep_protocol":{"morning":["string","string","string"],"evening":["string","string","string"],"sleep_environment":["string","string","string"],"priority_fixes":["string","string"]}}';
+}
+
+// Nutrition reference table for macro calculation
+var NUTRITION_DB = {
+  // Per 100g values: [protein_g, carbs_g, fat_g]
+  'egg': [13, 1, 10],
+  'chicken_breast': [31, 0, 3.6],
+  'ground_beef_90': [26, 0, 10],
+  'salmon': [25, 0, 13],
+  'turkey_breast': [29, 0, 2],
+  'tuna': [29, 0, 1],
+  'greek_yogurt': [10, 4, 2.5],
+  'cottage_cheese': [11, 3, 2],
+  'whey_scoop': [24, 3, 1],  // per scoop 30g
+  'oats': [17, 66, 7],
+  'brown_rice': [2.6, 23, 1],
+  'sweet_potato': [1.6, 20, 0.1],
+  'banana': [1.1, 23, 0.3],
+  'berries': [0.7, 14, 0.3],
+  'bread_slice': [8, 49, 4],
+  'peanut_butter_tbsp': [3.6, 3, 8],
+  'almond_butter_tbsp': [3, 3, 9],
+  'whole_milk_cup': [8, 12, 8],
+  'almond_milk_cup': [1, 1, 3]
+};
+
+// Build a full meal plan with correct macros from descriptions
+function buildMealPlanFromDescriptions(descriptions, proteinTarget, calorieTarget, carbsTraining, carbsRest, fatTraining, fatRest, days) {
+  var dayNames = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
+  var mealKeys = ['breakfast', 'shake', 'lunch', 'dinner', 'dessert'];
+
+  // Protein distribution per meal (as fractions of daily total)
+  // breakfast ~18%, shake ~20%, lunch ~25%, dinner ~30%, dessert ~7%
+  var proteinFractions = [0.18, 0.20, 0.25, 0.30, 0.07];
+
+  return descriptions.map(function(day, i) {
+    var isTraining = i < days;
+    var dailyCals = calorieTarget;
+    var pTarget = proteinTarget;
+    var cTarget = isTraining ? carbsTraining : carbsRest;
+    var fTarget = isTraining ? fatTraining : fatRest;
+
+    var meals = {};
+    var remainingP = pTarget;
+    var remainingC = cTarget;
+    var remainingF = fTarget;
+
+    mealKeys.forEach(function(meal, mi) {
+      var isLast = mi === mealKeys.length - 1;
+      var p = isLast ? remainingP : Math.round(pTarget * proteinFractions[mi]);
+      var c = isLast ? Math.max(0, remainingC) : Math.round(cTarget * proteinFractions[mi]);
+      var f = isLast ? Math.max(0, remainingF) : Math.round(fTarget * proteinFractions[mi]);
+
+      // Ensure minimums
+      p = Math.max(p, 5);
+      c = Math.max(c, 2);
+      f = Math.max(f, 2);
+
+      var cal = Math.round((p * 4) + (c * 4) + (f * 9));
+
+      meals[meal] = {
+        description: (day[meal] || 'High protein meal with complex carbs'),
+        protein_g: p,
+        carbs_g: c,
+        fat_g: f,
+        calories: cal
+      };
+
+      if (!isLast) {
+        remainingP -= p;
+        remainingC -= c;
+        remainingF -= f;
+      }
+    });
+
+    // Recalculate day total from actual meal values
+    var dayTotal = mealKeys.reduce(function(sum, meal) { return sum + meals[meal].calories; }, 0);
+
+    return {
+      day: dayNames[i],
+      type: isTraining ? 'training' : 'rest',
+      breakfast: meals.breakfast,
+      shake: meals.shake,
+      lunch: meals.lunch,
+      dinner: meals.dinner,
+      dessert: meals.dessert,
+      day_total: dayTotal
+    };
+  });
+}
+
 
   var dayNames = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
   var mealT = function(d, type) {
@@ -241,31 +334,28 @@ export default async function handler(req, res) {
     ]);
 
     var trainingData = cleanAndParse(results[0]);
-    var nutritionData = cleanAndParse(results[1]);
+    var nutritionRaw = cleanAndParse(results[1]);
 
-    // Post-process: recalculate all meal calories from macros (protein*4 + carbs*4 + fat*9)
-    // This corrects any math errors Claude made
-    if (nutritionData.nutrition && nutritionData.nutrition.meal_plan) {
-      nutritionData.nutrition.meal_plan = nutritionData.nutrition.meal_plan.map(function(day) {
-        var mealKeys = ['breakfast', 'shake', 'lunch', 'dinner', 'dessert'];
-        var dayTotal = 0;
-        mealKeys.forEach(function(meal) {
-          if (day[meal]) {
-            var p = parseFloat(day[meal].protein_g) || 0;
-            var c = parseFloat(day[meal].carbs_g) || 0;
-            var f = parseFloat(day[meal].fat_g) || 0;
-            var cal = Math.round((p * 4) + (c * 4) + (f * 9));
-            day[meal].calories = cal;
-            dayTotal += cal;
-          }
-        });
-        day.day_total = dayTotal;
-        return day;
-      });
-      // Also recalculate daily_calories as average of all days
-      var totalCals = nutritionData.nutrition.meal_plan.reduce(function(sum, d) { return sum + d.day_total; }, 0);
-      nutritionData.nutrition.daily_calories = calorieTarget; // keep the target
-    }
+    // Build meal plan with mathematically correct macros from descriptions
+    var mealPlan = buildMealPlanFromDescriptions(
+      nutritionRaw.meal_descriptions || [],
+      proteinTarget, calorieTarget,
+      carbsTraining, carbsRest, fatTraining, fatRest, days
+    );
+
+    var nutritionData = {
+      nutrition: {
+        daily_calories: calorieTarget,
+        protein_g: proteinTarget,
+        carbs_g_training: carbsTraining,
+        carbs_g_rest: carbsRest,
+        fat_g_training: fatTraining,
+        fat_g_rest: fatRest,
+        approach: 'Carb cycling — high carb on training days, low carb high fat on rest days',
+        meal_plan: mealPlan
+      },
+      sleep_protocol: nutritionRaw.sleep_protocol || {}
+    };
 
     var updateData = {
       program_name: intake.goal_primary + ' Program - ' + splitType,
