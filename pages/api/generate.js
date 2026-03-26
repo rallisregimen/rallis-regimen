@@ -1,647 +1,404 @@
-import { createClient } from '@supabase/supabase-js';
+import { useState, useEffect } from 'react';
+import { useRouter } from 'next/router';
+import { supabase } from '../lib/supabase';
 
-function getSupabase() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL,
-    process.env.SUPABASE_SERVICE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+var GOALS = [
+  { id: 'build_muscle', label: 'Build Muscle', desc: 'Maximize hypertrophy and improve body composition' },
+  { id: 'build_strength', label: 'Build Strength', desc: 'Increase maximum force output and get stronger' },
+  { id: 'lose_fat', label: 'Lose Body Fat', desc: 'Reduce body fat while preserving muscle' },
+  { id: 'athletic_performance', label: 'Athletic Performance', desc: 'Improve speed, power, and sport-specific fitness' },
+  { id: 'conditioning', label: 'Conditioning', desc: 'Build aerobic and anaerobic capacity' },
+  { id: 'general_health', label: 'General Health', desc: 'Improve overall health and quality of life' },
+];
+
+var EQUIPMENT_CARDS = [
+  { id: 'full_gym', label: 'Full Gym', desc: 'Barbells, dumbbells, cables, machines' },
+  { id: 'dumbbells_only', label: 'Dumbbells Only', desc: 'Dumbbells and a bench' },
+  { id: 'home_bands', label: 'Home and Bands', desc: 'Bodyweight and resistance bands' },
+  { id: 'bodyweight_only', label: 'Bodyweight Only', desc: 'No equipment needed' },
+];
+
+var SPECIFIC_EQ = ['Barbell','Trap Bar','Safety Squat Bar','Dumbbells','Kettlebells','Cable Machines','Weight Machines','Resistance Bands','Pull-Up Bar'];
+var DIETARY = ['None','No red meat','No pork','Pescatarian','Vegetarian','Gluten free','Dairy free'];
+var STEPS = ['About You','Goals','Training','Nutrition','Sleep'];
+
+var S = [
+  "@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;0,900;1,400&family=Barlow+Condensed:wght@400;600;700&family=Barlow:wght@300;400&display=swap');",
+  '* { margin:0; padding:0; box-sizing:border-box; }',
+  ':root { --m:#7B1A38; --md:#5C1229; --ml:#F2E8EC; --ow:#F7F4EF; --ch:#1A1A1A; --mi:#4A4A4A; --go:#B8943A; --bo:rgba(123,26,56,0.15); }',
+  'body { background:var(--ow); font-family:Barlow,sans-serif; min-height:100vh; }',
+  '.wrap { display:grid; grid-template-columns:280px 1fr; min-height:100vh; }',
+  '.side { background:var(--m); padding:40px 28px; display:flex; flex-direction:column; position:sticky; top:0; height:100vh; }',
+  '.logo { font-family:Barlow Condensed,sans-serif; font-weight:700; font-size:14px; letter-spacing:.15em; text-transform:uppercase; color:rgba(255,255,255,.9); margin-bottom:36px; }',
+  '.stitle { font-family:Playfair Display,serif; font-size:20px; font-weight:700; color:white; line-height:1.3; margin-bottom:6px; }',
+  '.ssub { font-size:12px; font-weight:300; color:rgba(255,255,255,.5); line-height:1.6; margin-bottom:36px; }',
+  '.snav { flex:1; }',
+  '.sni { display:flex; gap:12px; align-items:center; padding:11px 0; border-bottom:1px solid rgba(255,255,255,.08); }',
+  '.sni:first-child { border-top:1px solid rgba(255,255,255,.08); }',
+  '.sdot { width:20px; height:20px; border-radius:50%; border:1.5px solid rgba(255,255,255,.3); display:flex; align-items:center; justify-content:center; font-size:10px; font-weight:700; color:rgba(255,255,255,.4); min-width:20px; }',
+  '.sdot.ac { background:white; border-color:white; color:var(--m); }',
+  '.sdot.dn { background:rgba(255,255,255,.2); color:white; }',
+  '.slb { font-family:Barlow Condensed,sans-serif; font-size:12px; font-weight:600; letter-spacing:.06em; text-transform:uppercase; color:rgba(255,255,255,.5); }',
+  '.slb.ac { color:white; }',
+  '.pb { height:3px; background:rgba(255,255,255,.15); border-radius:2px; margin-top:32px; overflow:hidden; }',
+  '.pf { height:100%; background:white; border-radius:2px; transition:width .4s; }',
+  '.plb { font-size:10px; color:rgba(255,255,255,.4); text-transform:uppercase; letter-spacing:.1em; margin-top:8px; font-family:Barlow Condensed,sans-serif; }',
+  '.main { padding:52px 60px; max-width:700px; }',
+  '.ey { font-family:Barlow Condensed,sans-serif; font-size:10px; font-weight:600; letter-spacing:.25em; text-transform:uppercase; color:var(--go); margin-bottom:10px; }',
+  '.hd { font-family:Playfair Display,serif; font-size:30px; font-weight:900; color:var(--ch); line-height:1.1; margin-bottom:8px; }',
+  '.hd em { font-style:italic; color:var(--m); }',
+  '.dc { font-size:14px; font-weight:300; color:var(--mi); line-height:1.7; margin-bottom:36px; }',
+  '.fg { margin-bottom:26px; }',
+  '.fl { font-family:Barlow Condensed,sans-serif; font-size:12px; font-weight:600; letter-spacing:.1em; text-transform:uppercase; color:var(--ch); display:block; margin-bottom:7px; }',
+  '.fh { font-size:12px; font-weight:300; color:var(--mi); margin-bottom:9px; display:block; line-height:1.5; }',
+  '.fr { color:var(--m); margin-left:2px; }',
+  "input[type=text],input[type=number],select,textarea { width:100%; background:white; border:1px solid var(--bo); padding:12px 14px; font-family:Barlow,sans-serif; font-size:14px; font-weight:300; color:var(--ch); outline:none; transition:border-color .2s; appearance:none; }",
+  'input:focus,select:focus,textarea:focus { border-color:var(--m); }',
+  'textarea { resize:vertical; min-height:80px; }',
+  '.r2 { display:grid; grid-template-columns:1fr 1fr; gap:14px; }',
+  '.r3 { display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px; }',
+  '.og { display:grid; grid-template-columns:1fr 1fr; gap:8px; }',
+  '.oc { background:white; border:1.5px solid var(--bo); padding:14px 16px; cursor:pointer; transition:all .15s; display:flex; gap:10px; align-items:flex-start; }',
+  '.oc:hover,.oc.sel { border-color:var(--m); background:var(--ml); }',
+  '.oc.sel .och { background:var(--m); border-color:var(--m); }',
+  '.och { width:16px; height:16px; min-width:16px; border:1.5px solid rgba(123,26,56,.3); margin-top:2px; display:flex; align-items:center; justify-content:center; }',
+  '.och.rnd { border-radius:50%; }',
+  '.och svg { opacity:0; }',
+  '.oc.sel .och svg { opacity:1; }',
+  '.olb { font-family:Barlow Condensed,sans-serif; font-size:13px; font-weight:600; letter-spacing:.04em; text-transform:uppercase; color:var(--ch); margin-bottom:2px; }',
+  '.ods { font-size:11px; font-weight:300; color:var(--mi); line-height:1.5; }',
+  '.pb2 { margin-bottom:26px; }',
+  '.plb2 { font-family:Barlow Condensed,sans-serif; font-size:12px; font-weight:600; letter-spacing:.1em; text-transform:uppercase; color:var(--ch); display:block; margin-bottom:8px; }',
+  '.bg { display:inline-block; color:white; font-family:Barlow Condensed,sans-serif; font-size:9px; font-weight:700; letter-spacing:.15em; text-transform:uppercase; padding:2px 7px; margin-left:6px; vertical-align:middle; }',
+  '.bg1 { background:var(--m); }',
+  '.bg2 { background:var(--go); }',
+  '.tr { display:flex; justify-content:space-between; align-items:center; padding:13px 0; border-bottom:1px solid var(--bo); }',
+  '.tr:first-child { border-top:1px solid var(--bo); }',
+  '.tt { font-family:Barlow Condensed,sans-serif; font-size:13px; font-weight:600; letter-spacing:.04em; text-transform:uppercase; color:var(--ch); }',
+  '.ts { font-size:12px; font-weight:300; color:var(--mi); line-height:1.5; }',
+  '.tsw { width:42px; height:22px; background:rgba(123,26,56,.15); border-radius:11px; cursor:pointer; position:relative; transition:background .2s; min-width:42px; margin-left:14px; border:none; }',
+  '.tsw.on { background:var(--m); }',
+  '.tk { position:absolute; top:3px; left:3px; width:16px; height:16px; background:white; border-radius:50%; transition:left .2s; box-shadow:0 1px 3px rgba(0,0,0,.2); }',
+  '.tsw.on .tk { left:23px; }',
+  '.fnav { display:flex; justify-content:space-between; align-items:center; margin-top:44px; padding-top:26px; border-top:1px solid var(--bo); }',
+  '.bb { background:transparent; border:none; cursor:pointer; font-family:Barlow Condensed,sans-serif; font-size:13px; font-weight:600; letter-spacing:.08em; text-transform:uppercase; color:var(--mi); padding:11px 0; border-bottom:1px solid var(--mi); }',
+  '.bn { background:var(--m); border:none; cursor:pointer; font-family:Barlow Condensed,sans-serif; font-size:14px; font-weight:700; letter-spacing:.1em; text-transform:uppercase; color:white; padding:14px 40px; transition:background .2s; }',
+  '.bn:hover { background:var(--md); }',
+  '.bn:disabled { opacity:.4; cursor:not-allowed; }',
+  '.em { color:#C0392B; font-size:12px; margin-top:8px; }',
+  '.sc { display:flex; flex-direction:column; align-items:center; justify-content:center; min-height:60vh; text-align:center; padding:48px; }',
+  '.si { width:64px; height:64px; background:var(--m); border-radius:50%; display:flex; align-items:center; justify-content:center; margin-bottom:28px; font-size:28px; }',
+  '.sh { font-family:Playfair Display,serif; font-size:36px; font-weight:900; color:var(--ch); margin-bottom:12px; }',
+  '.sh em { font-style:italic; color:var(--m); }',
+  '.sx { font-size:14px; font-weight:300; color:var(--mi); line-height:1.7; max-width:440px; }',
+  '.loading { display:flex; align-items:center; justify-content:center; min-height:100vh; font-family:Barlow Condensed,sans-serif; font-size:14px; letter-spacing:.1em; text-transform:uppercase; color:var(--mi); }',
+  '@media(max-width:880px){.wrap{grid-template-columns:1fr;}.side{position:static;height:auto;}.snav{display:none;}.main{padding:32px 20px;}.og{grid-template-columns:1fr;}.r3{grid-template-columns:1fr 1fr;}.r2{grid-template-columns:1fr;}}'
+].join(' ');
+
+function Chk() {
+  return (
+    <svg width="10" height="8" viewBox="0 0 10 8" fill="none">
+      <path d="M1 4L3.5 6.5L9 1" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+    </svg>
   );
 }
 
-export const config = { maxDuration: 60 };
-
-function buildTrainingPrompt(intake, profile, days, splitType, splitDesc) {
-  var name = profile.full_name || profile.first_name || 'Member';
-  var equipment = intake.equipment || 'full_gym';
-  var goal = intake.goal_primary || 'build_muscle';
-  var goalSecondary = intake.goal_secondary || '';
-
-  // Rep scheme based on primary goal
-  var repScheme;
-  if (goal === 'build_strength') {
-    repScheme = 'REP SCHEME: Main lifts 3-5 sets x 3-6 reps heavy. Supplemental 3-4 sets x 6-10 reps. Accessories 2-3 sets x 10-15 reps. Full rest between sets.';
-  } else if (goal === 'athletic_performance') {
-    repScheme = 'REP SCHEME: Speed/power movements FIRST in each session — 3-6 reps at 30-70% 1RM, move the weight as fast as possible, 2-3 min rest. Then strength work 3-4 sets x 5-8 reps. Then accessories 3 sets x 10-15 reps.';
-  } else if (goal === 'conditioning' || goal === 'general_health') {
-    repScheme = 'REP SCHEME FOR LIFTING DAYS: 3-4 sets x 12-20 reps, moderate weight, 30-60 sec rest. Do NOT label lifting days as circuit or conditioning — they are Upper, Lower, or Full Body. Only dedicated cardio days get a cardio label.';
-  } else {
-    repScheme = 'REP SCHEME: Main lifts 3-4 sets x 6-10 reps. Supplemental 3 sets x 8-12 reps. Accessories 3 sets x 12-15 reps.';
-  }
-
-  // Speed/power note for athletic performance
-  var speedPowerNote = '';
-  if (goal === 'athletic_performance' || goalSecondary === 'athletic_performance') {
-    speedPowerNote = '\n\nSPEED & POWER TRAINING (include at START of each lifting session):\n- Place speed/power work FIRST — never after pre-exhaustion\n- Load: 30-70% 1RM, intent to move as FAST as possible\n- Reps: 1-6 per set, keep total reps under 30 per exercise\n- Sets: 3-6 sets, rest 1-3 min between sets (full recovery)\n- Common exercises: power clean, hang clean, push press, speed squat, speed deadlift, kettlebell swing, box jump, broad jump, med ball throw, plyometric push-up, sprint\n- Use bands or chains when available for accommodating resistance through full range';
-  }
-
-  // Cardio day programming note
-  var cardioNote = '';
-  if (splitType === 'UPPER LOWER CARDIO') {
-    cardioNote = '\n\nCARDIO DAYS — program these as dedicated cardio sessions, no lifting:\n- Zone 2: 20-45 min continuous at 70-80% max HR, conversational pace. Incline walk, bike, row, swim.\n- VO2 Max: 3-6 x 4 min at 85-95% max HR, equal rest. Run, bike, rower.\n- Anaerobic: 6-10 x 30 sec max effort, 90 sec rest. Sprints, air bike, sled, stairs.\nEach cardio day programs 2-3 of these modalities as exercises with sets/reps (use duration as reps e.g. "20 min" or "4 min").';
-  }
-
-  // Structure guide — only exercise patterns, no day counts (splitDesc handles that)
-  var structureGuide;
-  if (splitType === 'FULL BODY') {
-    structureGuide = 'FULL BODY STRUCTURE: Each session hits every major muscle group. Rotate emphasis across days:\n- Day A emphasis: Horizontal push + hip-dominant lower + vertical pull\n- Day B emphasis: Vertical push + quad-dominant lower + horizontal pull\n- Day C emphasis (if 3+ days): Horizontal pull + hip-dominant lower + horizontal push\nFill remaining slots with isolation/accessory work.';
-  } else if (splitType === 'UPPER LOWER' || splitType === 'UPPER LOWER CARDIO') {
-    structureGuide = 'UPPER/LOWER STRUCTURE:\n- Upper A: Horizontal push/pull emphasis. Primary: horizontal press + horizontal row. Supplemental: vertical pull, front delt or vertical press, biceps, triceps.\n- Upper B: Vertical push/pull emphasis. Primary: vertical press + vertical pull. Supplemental: horizontal press or chest isolation, lateral raise, biceps, triceps.\n- Lower A: Hip-dominant. Primary: hip hinge (RDL, deadlift). Supplemental: quad movement, glute isolation. Accessories: hamstring, calves, abs.\n- Lower B: Quad-dominant. Primary: squat variation. Supplemental: hip hinge variation, glute work. Accessories: hamstring, calves, abs.';
-  } else {
-    // LOWER PULL PUSH — only used for 6 days no conditioning
-    structureGuide = 'LOWER/PULL/PUSH STRUCTURE (6 days):\n- Lower A: Hip-dominant (hinge primary). Lower B: Quad-dominant (squat primary).\n- Pull A: Horizontal row primary. Pull B: Vertical pull primary.\n- Push A: Horizontal press primary. Push B: Vertical press primary.\nOrder: Lower A, Pull A, Push A, Lower B, Pull B, Push B.';
-  }
-
-  var blockProgression = 'BLOCK PROGRESSION — generate all 3 blocks, each block has the same number of days but different exercise selection:\n- Block 1 (weeks 1-4): Foundation exercises. RIR W1=3-4, W2=2-3, W3=1-2, W4=deload (7-8 RIR).\n- Block 2 (weeks 5-8): Rotate exercise variation within same movement pattern. E.g. barbell bench → incline dumbbell press. RIR same progression.\n- Block 3 (weeks 9-12): Further variation or return to Block 1 exercises with higher load targets. RIR same progression.';
-
-  var injuryNote = intake.injuries_limitations ? '\nInjuries/limitations: ' + intake.injuries_limitations + ' — avoid these movements.' : '';
-
-  return 'Generate ONLY the training section as valid JSON. No text outside JSON.\n\nMEMBER: ' + name + ', ' + intake.age + 'yo ' + intake.sex + ', ' + (intake.experience_level || 'intermediate') + '. Equipment: ' + equipment + '. Primary goal: ' + goal + '. Secondary goal: ' + (goalSecondary || 'none') + '. Session length: ' + (intake.session_length_mins || 60) + ' min.' + injuryNote + '\n\nSPLIT INSTRUCTIONS (follow exactly):\n' + splitDesc + '\n\n' + repScheme + speedPowerNote + '\n\n' + structureGuide + '\n\n' + blockProgression + cardioNote + '\n\nRULES:\n1. Each block\'s "days" array must have EXACTLY ' + days + ' objects — count before outputting.\n2. Day names must be descriptive: "Upper A", "Lower B", "Cardio", "Full Body". Never "string" or "-".\n3. ' + equipment + ': home_bands/bodyweight_only = no machines; dumbbells_only = no barbells or machines.\n4. No repeated exercises within the same session.\n5. Bands = 12-30 reps minimum.\n6. Max 3 compound exercises per day (4 for full body/bodyweight days).\n7. Rest times: conditioning goal = 30-60 sec; hypertrophy = 60-90 sec isolation / 2-3 min compounds; strength = 3-5 min main lifts.\n\nOutput ONLY this JSON structure (fill in all fields with real values, never use placeholder text):\n{"split":"' + splitType + '","weekly_schedule":{"day_1":"","day_2":"","day_3":"","day_4":"","day_5":"","day_6":"","day_7":""},"blocks":[{"block":1,"weeks":"1-4","days":[/* EXACTLY ' + days + ' day objects */]},{"block":2,"weeks":"5-8","days":[/* EXACTLY ' + days + ' day objects */]},{"block":3,"weeks":"9-12","days":[/* EXACTLY ' + days + ' day objects */]}]}\n\nDay object format: {"day":"Upper A","focus":"Horizontal push and pull","exercises":[{"name":"Barbell Bench Press","sets":4,"reps":"8-10","rir_week1":"3-4","rir_week2":"2-3","rir_week3":"1-2","rir_week4":"7-8 deload","rest":"2 min","note":"Control the descent, press explosively"}]}';
+function OC(props) {
+  return (
+    <div className={props.selected ? 'oc sel' : 'oc'} onClick={props.onClick}>
+      <div className={props.multi ? 'och' : 'och rnd'}><Chk /></div>
+      <div>
+        <div className="olb">{props.label}</div>
+        {props.desc && <div className="ods">{props.desc}</div>}
+      </div>
+    </div>
+  );
 }
 
-// INGREDIENT LOOKUP TABLE — [protein_g, carbs_g, fat_g] per unit
-// Unit is defined in the key name (per egg, per oz, per cup, per scoop, per tbsp, per link, per slice, per medium)
-var INGREDIENTS = {
-  // protein sources — per oz unless noted
-  'egg':              { unit:'each',  p:6,    c:0.4,  f:5   },
-  'egg_white':        { unit:'each',  p:3.6,  c:0.2,  f:0   },
-  'chicken_breast':   { unit:'oz',    p:8.5,  c:0,    f:0.6 },
-  'turkey_breast':    { unit:'oz',    p:8.0,  c:0,    f:0.7 },
-  'salmon':           { unit:'oz',    p:7.0,  c:0,    f:2.2 },
-  'ground_beef_90':   { unit:'oz',    p:7.0,  c:0,    f:2.5 },
-  'tuna_canned':      { unit:'oz',    p:6.6,  c:0,    f:0.3 },
-  'shrimp':           { unit:'oz',    p:6.0,  c:0,    f:0.3 },
-  'turkey_sausage':   { unit:'link',  p:7.0,  c:0.5,  f:4.0 },
-  'chicken_sausage':  { unit:'link',  p:6.0,  c:1.0,  f:3.5 },
-  'lean_bacon':       { unit:'slice', p:3.0,  c:0,    f:2.5 },
-  'whey_scoop':       { unit:'scoop', p:24,   c:3,    f:1   },
-  'egg_protein_scoop':{ unit:'scoop', p:24,   c:2,    f:0.5 },
-  'greek_yogurt':     { unit:'cup',   p:20,   c:8,    f:5   },
-  'cottage_cheese':   { unit:'cup',   p:25,   c:6,    f:5   },
-  // carb sources
-  'oats':             { unit:'cup',   p:10,   c:54,   f:5   },
-  'oats_half':        { unit:'half',  p:5,    c:27,   f:2.5 },
-  'brown_rice':       { unit:'cup',   p:5,    c:45,   f:2   },
-  'sweet_potato':     { unit:'med',   p:2,    c:26,   f:0   },
-  'white_potato':     { unit:'med',   p:3,    c:37,   f:0   },
-  'bread_wg':         { unit:'slice', p:4,    c:15,   f:1   },
-  'banana':           { unit:'each',  p:1,    c:27,   f:0   },
-  'berries':          { unit:'cup',   p:1,    c:14,   f:0.5 },
-  'apple':            { unit:'each',  p:0.5,  c:25,   f:0   },
-  'honey':            { unit:'tbsp',  p:0,    c:17,   f:0   },
-  'granola':          { unit:'qcup',  p:3,    c:20,   f:4   },
-  // fat sources
-  'avocado_half':     { unit:'half',  p:1,    c:6,    f:11  },
-  'peanut_butter':    { unit:'tbsp',  p:3.5,  c:3.5,  f:8   },
-  'almond_butter':    { unit:'tbsp',  p:3,    c:3,    f:9   },
-  'olive_oil':        { unit:'tbsp',  p:0,    c:0,    f:14  },
-  'whole_milk':       { unit:'cup',   p:8,    c:12,   f:8   },
-  'almond_milk':      { unit:'cup',   p:1,    c:1,    f:3   },
-  'cheese_oz':        { unit:'oz',    p:7,    c:0.5,  f:9   },
-  'spinach':          { unit:'cup',   p:1,    c:1,    f:0   },
-  'broccoli':         { unit:'cup',   p:2.5,  c:6,    f:0   },
-  'asparagus':        { unit:'cup',   p:2.5,  c:4,    f:0   }
-};
+function Tog(props) {
+  return (
+    <div className="tr">
+      <div>
+        <div className="tt">{props.label}</div>
+        {props.sub && <div className="ts">{props.sub}</div>}
+      </div>
+      <button className={props.value ? 'tsw on' : 'tsw'} onClick={function() { props.onChange(!props.value); }}>
+        <div className="tk" />
+      </button>
+    </div>
+  );
+}
 
-function calcMacros(ingredients) {
-  // ingredients is array of {id, qty}
-  var p = 0, c = 0, f = 0;
-  ingredients.forEach(function(ing) {
-    var item = INGREDIENTS[ing.id];
-    if (!item) return;
-    p += item.p * ing.qty;
-    c += item.c * ing.qty;
-    f += item.f * ing.qty;
+export default function ProfilePage() {
+  var router = useRouter();
+  var stepState = useState(0); var step = stepState[0]; var setStep = stepState[1];
+  var doneState = useState(false); var done = doneState[0]; var setDone = doneState[1];
+  var loadingState = useState(false); var loading = loadingState[0]; var setLoading = loadingState[1];
+  var checkingState = useState(true); var checking = checkingState[0]; var setChecking = checkingState[1];
+  var errState = useState(null); var err = errState[0]; var setErr = errState[1];
+  var userState = useState(null); var user = userState[0]; var setUser = userState[1];
+
+  var formState = useState({
+    first_name:'', age:'', sex:'', height_ft:'', height_in:'', current_weight_lbs:'', ideal_weight_lbs:'',
+    goal_primary:'', goal_secondary:'',
+    experience_level:'', training_days_per_week:'', session_length_mins:'',
+    equipment:'', equipment_detail:[], burnout_history:'', injuries_limitations:'',
+    weight_management_goal:'', nutrition_approach:'',
+    dietary_restrictions:[], food_preferences:'', foods_to_avoid:'',
+    avg_sleep_hours:'', sleep_issue:'', typical_bedtime:'', typical_wake_time:'',
+    caffeine_after_noon:false, phone_in_bedroom:false, success_vision:''
   });
-  return {
-    protein_g: Math.round(p),
-    carbs_g:   Math.round(c),
-    fat_g:     Math.round(f),
-    calories:  Math.round(p*4 + c*4 + f*9)
-  };
-}
+  var form = formState[0]; var setForm = formState[1];
 
-function buildDescription(ingredients) {
-  var unitLabels = {
-    'egg':             function(q) { return q + (q===1?' egg':' eggs'); },
-    'egg_white':       function(q) { return q + (q===1?' egg white':' egg whites'); },
-    'chicken_breast':  function(q) { return q + 'oz chicken breast'; },
-    'turkey_breast':   function(q) { return q + 'oz turkey breast'; },
-    'salmon':          function(q) { return q + 'oz salmon'; },
-    'ground_beef_90':  function(q) { return q + 'oz ground beef (90/10)'; },
-    'tuna_canned':     function(q) { return q + 'oz canned tuna'; },
-    'shrimp':          function(q) { return q + 'oz shrimp'; },
-    'turkey_sausage':  function(q) { return q + (q===1?' turkey sausage link':' turkey sausage links'); },
-    'chicken_sausage': function(q) { return q + (q===1?' chicken sausage link':' chicken sausage links'); },
-    'lean_bacon':      function(q) { return q + (q===1?' slice lean bacon':' slices lean bacon'); },
-    'whey_scoop':      function(q) { return q + (q===1?' scoop whey protein':' scoops whey protein'); },
-    'egg_protein_scoop': function(q) { return q + (q===1?' scoop egg white protein':' scoops egg white protein'); },
-    'greek_yogurt':    function(q) { return q + (q===1?' cup Greek yogurt':' cups Greek yogurt'); },
-    'cottage_cheese':  function(q) { return q + (q===1?' cup cottage cheese':' cups cottage cheese'); },
-    'oats':            function(q) { return q + (q===1?' cup oats':' cups oats'); },
-    'oats_half':       function(q) { return '1/2 cup oats'; },
-    'brown_rice':      function(q) { return q + (q===1?' cup cooked brown rice':' cups cooked brown rice'); },
-    'sweet_potato':    function(q) { return q + (q===1?' medium sweet potato':' medium sweet potatoes'); },
-    'white_potato':    function(q) { return q + (q===1?' medium potato':' medium potatoes'); },
-    'bread_wg':        function(q) { return q + (q===1?' slice whole grain bread':' slices whole grain bread'); },
-    'banana':          function(q) { return q + (q===1?' banana':' bananas'); },
-    'berries':         function(q) { return q + (q===1?' cup berries':' cups berries'); },
-    'apple':           function(q) { return q + (q===1?' apple':' apples'); },
-    'honey':           function(q) { return q + (q===1?' tbsp honey':' tbsp honey'); },
-    'granola':         function(q) { return q + ' 1/4 cup granola'; },
-    'avocado_half':    function(q) { return q===1 ? '1/2 avocado' : q + ' avocado halves'; },
-    'peanut_butter':   function(q) { return q + (q===1?' tbsp peanut butter':' tbsp peanut butter'); },
-    'almond_butter':   function(q) { return q + (q===1?' tbsp almond butter':' tbsp almond butter'); },
-    'olive_oil':       function(q) { return q + (q===1?' tbsp olive oil':' tbsp olive oil'); },
-    'whole_milk':      function(q) { return q + (q===1?' cup whole milk':' cups whole milk'); },
-    'almond_milk':     function(q) { return q + (q===1?' cup almond milk':' cups almond milk'); },
-    'cheese_oz':       function(q) { return q + 'oz cheese'; },
-    'spinach':         function(q) { return q + (q===1?' cup spinach':' cups spinach'); },
-    'broccoli':        function(q) { return q + (q===1?' cup broccoli':' cups broccoli'); },
-    'asparagus':       function(q) { return q + (q===1?' cup asparagus':' cups asparagus'); }
-  };
-  return ingredients.map(function(ing) {
-    var fn = unitLabels[ing.id];
-    if (fn) return fn(ing.qty);
-    return ing.qty + ' ' + ing.id;
-  }).join(' + ');
-}
+  useEffect(function() {
+    async function load() {
+      var result = await supabase.auth.getSession();
+      var u = result.data && result.data.session ? result.data.session.user : null;
+      if (!u) { router.push('/login'); return; }
+      setUser(u);
 
+      // Load existing intake to pre-populate
+      var intakeRes = await supabase.from('intake_submissions').select('*').eq('user_id', u.id).order('submitted_at', { ascending: false }).limit(1).single();
+      if (intakeRes.data) {
+        var d = intakeRes.data;
+        setForm({
+          first_name: d.first_name || '',
+          age: d.age || '',
+          sex: d.sex || '',
+          height_ft: d.height_ft || '',
+          height_in: d.height_in || '',
+          current_weight_lbs: d.current_weight_lbs || '',
+          ideal_weight_lbs: d.ideal_weight_lbs || '',
+          goal_primary: d.goal_primary || '',
+          goal_secondary: d.goal_secondary || '',
+          experience_level: d.experience_level || '',
+          training_days_per_week: d.training_days_per_week ? String(d.training_days_per_week) : '',
+          session_length_mins: d.session_length_mins ? String(d.session_length_mins) : '',
+          equipment: d.equipment || '',
+          equipment_detail: d.equipment_detail || [],
+          burnout_history: d.burnout_history || '',
+          injuries_limitations: d.injuries_limitations || '',
+          weight_management_goal: d.weight_management_goal || '',
+          nutrition_approach: d.nutrition_approach || '',
+          dietary_restrictions: Array.isArray(d.dietary_restrictions) ? d.dietary_restrictions : [],
+          food_preferences: d.food_preferences || '',
+          foods_to_avoid: d.foods_to_avoid || '',
+          avg_sleep_hours: d.avg_sleep_hours || '',
+          sleep_issue: d.sleep_issue || '',
+          typical_bedtime: d.typical_bedtime || '',
+          typical_wake_time: d.typical_wake_time || '',
+          caffeine_after_noon: d.caffeine_after_noon || false,
+          phone_in_bedroom: d.phone_in_bedroom || false,
+          success_vision: d.success_vision || ''
+        });
+      }
+      setChecking(false);
+    }
+    load();
+  }, []);
 
-function buildNutritionSleepPrompt(intake, profile, days, proteinTarget, calorieTarget, carbsTraining, carbsRest, fatTraining, fatRest) {
-  var name = profile.full_name || profile.first_name || 'Member';
-  var sleepTime = intake.typical_bedtime || 'not specified';
-  var wakeTime = intake.typical_wake_time || 'not specified';
-  var sleepIssue = intake.sleep_issue || 'none';
-  var caffeine = intake.caffeine_after_noon;
-  var phone = intake.phone_in_bedroom;
-  var restrictions = (intake.dietary_restrictions && intake.dietary_restrictions.join) ? intake.dietary_restrictions.join(', ') : 'none';
-  var foodsToAvoid = intake.foods_to_avoid || 'none';
-
-  // Build restricted ingredient set so we never offer them to Claude
-  var restrictedIds = [];
-  var restrictionStr = restrictions.toLowerCase();
-  if (restrictionStr.includes('dairy')) {
-    restrictedIds = restrictedIds.concat(['greek_yogurt','cottage_cheese','whole_milk','cheese_oz']);
+  function set(k, v) {
+    setForm(function(f) { return Object.assign({}, f, { [k]: v }); });
   }
-  if (restrictionStr.includes('vegan') || restrictionStr.includes('vegetarian')) {
-    restrictedIds = restrictedIds.concat(['chicken_breast','turkey_breast','salmon','ground_beef_90',
-      'tuna_canned','shrimp','turkey_sausage','chicken_sausage','lean_bacon','whey_scoop','egg_protein_scoop']);
-  }
-  if (restrictionStr.includes('no red meat')) {
-    restrictedIds = restrictedIds.concat(['ground_beef_90']);
-  }
-  if (restrictionStr.includes('no pork')) {
-    restrictedIds = restrictedIds.concat(['lean_bacon']);
-  }
-  if (restrictionStr.includes('pescatarian')) {
-    restrictedIds = restrictedIds.concat(['chicken_breast','turkey_breast','ground_beef_90',
-      'turkey_sausage','chicken_sausage','lean_bacon']);
-  }
-  // Also parse foods_to_avoid freetext for common dairy/restriction terms
-  var avoidLower = foodsToAvoid.toLowerCase();
-  // If whey is avoided, restrict it and use egg protein instead
-  if (avoidLower.includes('whey') || avoidLower.includes('protein powder')) {
-    restrictedIds = restrictedIds.concat(['whey_scoop']);
-  }
-  if (avoidLower.includes('dairy') || avoidLower.includes('milk') || avoidLower.includes('yogurt') || avoidLower.includes('cheese')) {
-    restrictedIds = restrictedIds.concat(['greek_yogurt','cottage_cheese','whole_milk','cheese_oz']);
-  }
-
-  // Per-meal protein targets
-  var pBreakfast = Math.round(proteinTarget * 0.20);
-  var pShake     = Math.round(proteinTarget * 0.18);
-  var pLunch     = Math.round(proteinTarget * 0.27);
-  var pDinner    = Math.round(proteinTarget * 0.28);
-  var pDessert   = proteinTarget - pBreakfast - pShake - pLunch - pDinner;
-
-  // Per-meal carb targets (training day)
-  var cBT  = Math.round(carbsTraining * 0.28); // breakfast
-  var cST  = Math.round(carbsTraining * 0.22); // shake
-  var cLT  = Math.round(carbsTraining * 0.28); // lunch
-  var cDT  = Math.round(carbsTraining * 0.14); // dinner
-  var cDeT = carbsTraining - cBT - cST - cLT - cDT; // dessert
-
-  // Per-meal carb targets (rest day)
-  var cBR  = Math.round(carbsRest * 0.30);
-  var cSR  = Math.round(carbsRest * 0.20);
-  var cLR  = Math.round(carbsRest * 0.25);
-  var cDR  = Math.round(carbsRest * 0.15);
-  var cDeR = carbsRest - cBR - cSR - cLR - cDR;
-
-  // Per-meal fat targets (training day)
-  var fBT  = Math.round(fatTraining * 0.25);
-  var fST  = Math.round(fatTraining * 0.15);
-  var fLT  = Math.round(fatTraining * 0.20);
-  var fDT  = Math.round(fatTraining * 0.30);
-  var fDeT = fatTraining - fBT - fST - fLT - fDT;
-
-  // Per-meal fat targets (rest day — higher fat overall)
-  var fBR  = Math.round(fatRest * 0.22);
-  var fSR  = Math.round(fatRest * 0.12);
-  var fLR  = Math.round(fatRest * 0.25);
-  var fDR  = Math.round(fatRest * 0.32);
-  var fDeR = fatRest - fBR - fSR - fLR - fDR;
-
-  // Carb quantity guidance
-  var oatsCupsBreakfast  = Math.round(cBT / 54 * 10) / 10;  // approx cups oats
-  var riceCupsLunch      = Math.round(cLT / 45 * 10) / 10;  // approx cups rice
-  var pbTbspShake        = Math.round(fST / 8);              // approx tbsp peanut butter
-
-  // All ingredients with macros
-  var allIngredientLines = [
-    '  egg (each): 6p/0c/5f',
-    '  egg_white (each): 4p/0c/0f',
-    '  chicken_breast (oz): 8.5p/0c/0.6f',
-    '  turkey_breast (oz): 8p/0c/0.7f',
-    '  salmon (oz): 7p/0c/2.2f',
-    '  ground_beef_90 (oz): 7p/0c/2.5f',
-    '  tuna_canned (oz): 6.6p/0c/0.3f',
-    '  shrimp (oz): 6p/0c/0.3f',
-    '  turkey_sausage (link): 7p/0.5c/4f',
-    '  chicken_sausage (link): 6p/1c/3.5f',
-    '  lean_bacon (slice): 3p/0c/2.5f',
-    '  whey_scoop (scoop): 24p/3c/1f',
-    '  egg_protein_scoop (scoop): 24p/2c/0.5f',
-    '  greek_yogurt (cup): 20p/8c/5f',
-    '  cottage_cheese (cup): 25p/6c/5f',
-    '  oats (cup): 10p/54c/5f',
-    '  oats_half (half): 5p/27c/2.5f',
-    '  brown_rice (cup): 5p/45c/2f',
-    '  sweet_potato (med): 2p/26c/0f',
-    '  white_potato (med): 3p/37c/0f',
-    '  bread_wg (slice): 4p/15c/1f',
-    '  banana (each): 1p/27c/0f',
-    '  berries (cup): 1p/14c/0.5f',
-    '  apple (each): 0.5p/25c/0f',
-    '  honey (tbsp): 0p/17c/0f',
-    '  granola (qcup): 3p/20c/4f',
-    '  avocado_half (half): 1p/6c/11f',
-    '  peanut_butter (tbsp): 3.5p/3.5c/8f',
-    '  almond_butter (tbsp): 3p/3c/9f',
-    '  olive_oil (tbsp): 0p/0c/14f',
-    '  whole_milk (cup): 8p/12c/8f',
-    '  almond_milk (cup): 1p/1c/3f',
-    '  cheese_oz (oz): 7p/0.5c/9f',
-    '  spinach (cup): 1p/1c/0f',
-    '  broccoli (cup): 2.5p/6c/0f',
-    '  asparagus (cup): 2.5p/4c/0f'
-  ];
-
-  // Filter out restricted ingredients from the list Claude sees
-  var ingredientLines = allIngredientLines.filter(function(line) {
-    return !restrictedIds.some(function(id) { return line.trim().startsWith(id + ' '); });
-  });
-
-  // Pick safe defaults for example templates based on restrictions
-  var safeYogurt   = restrictedIds.indexOf('greek_yogurt') === -1 ? 'greek_yogurt' : 'cottage_cheese';
-  var safeMilk     = restrictedIds.indexOf('whole_milk') === -1 ? 'whole_milk' : 'almond_milk';
-  var safeChicken  = restrictedIds.indexOf('chicken_breast') === -1 ? 'chicken_breast' : 'salmon';
-  var safeSalmon   = restrictedIds.indexOf('salmon') === -1 ? 'salmon' : 'tuna_canned';
-  // If both dairy and whey are restricted (vegan), use egg_white as protein base for shake
-  var shakeProtein = restrictedIds.indexOf('whey_scoop') === -1 ? '{"id":"whey_scoop","qty":2}' : '{"id":"egg_protein_scoop","qty":2}';
-  var shakeYogurt  = restrictedIds.indexOf('greek_yogurt') === -1 ? ',{"id":"greek_yogurt","qty":0.5}' : '';
-
-  var dayNames = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
-
-  // Richer example templates
-  var dayTemplate = function(d, type) {
-    var isT = type === 'training';
-    return '{"day":"' + d + '","type":"' + type + '",' +
-      '"breakfast":[{"id":"egg","qty":4},{"id":"turkey_sausage","qty":2}' + (isT ? ',{"id":"oats_half","qty":1},{"id":"berries","qty":1}' : ',{"id":"avocado_half","qty":1}') + '],' +
-      '"shake":[' + shakeProtein + ',{"id":"' + safeMilk + '","qty":1},{"id":"banana","qty":1},{"id":"peanut_butter","qty":1}' + shakeYogurt + '],' +
-      '"lunch":[{"id":"' + safeChicken + '","qty":8}' + (isT ? ',{"id":"brown_rice","qty":1},{"id":"broccoli","qty":1}' : ',{"id":"avocado_half","qty":1},{"id":"spinach","qty":2},{"id":"olive_oil","qty":1}') + '],' +
-      '"dinner":[{"id":"' + safeSalmon + '","qty":8},{"id":"asparagus","qty":1}' + (isT ? ',{"id":"sweet_potato","qty":1}' : ',{"id":"olive_oil","qty":1}') + '],' +
-      '"dessert":[{"id":"' + safeYogurt + '","qty":1},{"id":"berries","qty":1},{"id":"honey","qty":1}]}';
-  };
-  var dayTemplates = [];
-  // Training day schedule by day count
-  // Index: 0=Mon, 1=Tue, 2=Wed, 3=Thu, 4=Fri, 5=Sat, 6=Sun
-  var trainingSchedules = {
-    2: [true, false, false, true, false, false, false],   // Mon, Thu
-    3: [true, false, true, false, true, false, false],    // Mon, Wed, Fri
-    4: [true, true, false, true, true, false, false],     // Mon, Tue, Thu, Fri
-    5: [true, true, true, true, true, false, false],      // Mon-Fri
-    6: [true, true, true, true, true, true, false]        // Mon-Sat
-  };
-  var schedule = trainingSchedules[days] || trainingSchedules[4];
-
-  for (var d = 0; d < 7; d++) dayTemplates.push(dayTemplate(dayNames[d], schedule[d] ? 'training' : 'rest'));
-
-  var restrictionWarning = restrictedIds.length > 0
-    ? '\n\nHARD RESTRICTION — NEVER USE THESE INGREDIENTS: ' + restrictedIds.join(', ') + '. These are excluded due to dietary restrictions. Do not include them in any meal on any day.'
-    : '';
-
-  return 'Choose ingredients for a 7-day meal plan. Return ONLY valid JSON, no other text.\n\nMEMBER: ' + name + ', ' + intake.age + 'yo ' + intake.sex + '. Goal: ' + intake.goal_primary + '. Restrictions: ' + restrictions + '. Avoid: ' + foodsToAvoid + '.' + restrictionWarning + '\n\nDAILY TARGETS: ' + proteinTarget + 'g protein | Training: ' + carbsTraining + 'g carbs / ' + fatTraining + 'g fat | Rest: ' + carbsRest + 'g carbs / ' + fatRest + 'g fat\n\nPER-MEAL TARGETS (training day / rest day):\n  breakfast:  ~' + pBreakfast + 'g protein | ~' + cBT + 'g carbs (T) / ~' + cBR + 'g carbs (R) | ~' + fBT + 'g fat (T) / ~' + fBR + 'g fat (R)\n  shake:      ~' + pShake + 'g protein | ~' + cST + 'g carbs (T) / ~' + cSR + 'g carbs (R) | ~' + fST + 'g fat (T) / ~' + fSR + 'g fat (R)\n  lunch:      ~' + pLunch + 'g protein | ~' + cLT + 'g carbs (T) / ~' + cLR + 'g carbs (R) | ~' + fLT + 'g fat (T) / ~' + fLR + 'g fat (R)\n  dinner:     ~' + pDinner + 'g protein | ~' + cDT + 'g carbs (T) / ~' + cDR + 'g carbs (R) | ~' + fDT + 'g fat (T) / ~' + fDR + 'g fat (R)\n  dessert:    ~' + pDessert + 'g protein | ~' + cDeT + 'g carbs (T) / ~' + cDeR + 'g carbs (R) | ~' + fDeT + 'g fat (T) / ~' + fDeR + 'g fat (R)\n\nAVAILABLE INGREDIENT IDs (macros per unit, format p/c/f) — ONLY use IDs from this list:\n' + ingredientLines.join('\n') + '\n\nQUANTITY GUIDANCE — use these as starting points for hitting targets:\nPROTEIN: ' + pLunch + 'g at lunch = chicken_breast qty ' + Math.round(pLunch/8.5) + ', or salmon qty ' + Math.round(pLunch/7) + ', or ground_beef_90 qty ' + Math.round(pLunch/7) + '. ' + pDinner + 'g at dinner = similar. ' + pBreakfast + 'g at breakfast = ' + Math.round(pBreakfast/6) + ' eggs, or eggs + turkey_sausage combo.\nCARBS (training): ' + cBT + 'g at breakfast = oats qty ' + Math.round(cBT/54*10)/10 + ' cup' + (cBT > 54 ? 's' : '') + (cBT > 27 ? '' : ' (use oats_half for ~27g)') + '. ' + cLT + 'g at lunch = brown_rice qty ' + Math.round(cLT/45*10)/10 + ' cup' + (cLT > 45 ? 's' : '') + ', or sweet_potato qty ' + Math.round(cLT/26) + '. ' + cST + 'g in shake = banana qty ' + Math.round(cST/27) + (cST > 40 ? ' + berries qty 1' : '') + '.\nFAT (training): ' + fBT + 'g at breakfast comes from eggs naturally, or add avocado_half (11f) or peanut_butter (8f per tbsp). ' + fDT + 'g at dinner = salmon naturally has fat, or add olive_oil qty ' + Math.round(fDT/14) + '.\nFAT (rest day): ' + fLR + 'g at lunch = avocado_half (11f) + olive_oil qty ' + Math.round((fLR-11)/14) + '. ' + fDR + 'g at dinner = fatty fish or add olive_oil.\n\nRULES:\n1. For each meal output an array of {id, qty} objects — qty is always a positive number. Only use ingredient IDs from the list above.\n2. BUILD COMPLETE MEALS with 3-5 ingredients each: protein source + carb source (training days) + vegetable or fruit + fat source + optional flavor item.\n3. VARY every day: rotate protein sources (chicken one day, salmon next, beef next), rotate carbs (rice vs sweet potato vs oats), rotate vegetables.\n4. BREAKFAST: eggs and/or ' + (restrictedIds.indexOf('greek_yogurt') === -1 ? 'greek_yogurt' : 'cottage_cheese') + ' required. Add turkey_sausage or chicken_sausage for more protein. Training days: oats or bread_wg for carbs + fruit. Rest days: avocado or nut butter instead of starch.\n5. SHAKE: ' + (restrictedIds.indexOf('whey_scoop') === -1 ? 'whey_scoop' : 'egg_protein_scoop') + ' qty 1-2 + ' + safeMilk + ' + banana or berries + peanut_butter or almond_butter.\n6. LUNCH: big protein qty to hit target + starchy carb on training days (brown_rice, sweet_potato, white_potato) + vegetable (broccoli, asparagus, spinach). Rest days: replace starch with avocado_half and olive_oil.\n7. DINNER: big protein + vegetable + small carb on training days. Rest days: more fat, no starch.\n8. DESSERT: ' + (restrictedIds.indexOf('greek_yogurt') === -1 ? 'greek_yogurt' : 'berries') + ' or cottage_cheese base + berries + honey or granola.\n\nSLEEP PROTOCOL — one consistent protocol:\nBedtime: ' + sleepTime + '. Wake: ' + wakeTime + '. Issue: ' + sleepIssue + '. caffeine_after_noon=' + caffeine + ', phone_in_bedroom=' + phone + '.\nMorning: get up immediately, outdoor sunlight 10-30 min, early movement, cold shower 1-3 min morning only if sleep issues.\nEvening: lower lights after sunset, limit electronics 1-2hr before bed, hot bath/shower 60-90min before bed, stretching, slow exhale breathing, no large meals 2-3hr before bed.\nEnvironment: 60-68F, complete darkness, fan.\nSupplements if sleep issues: magnesium glycinate or apigenin. NEVER melatonin.\n\nOutput ONLY this JSON (replace all example ingredient arrays with your actual picks for each day):\n{"meal_ingredients":[' + dayTemplates.join(',') + '],"sleep_protocol":{"morning":["string","string","string"],"evening":["string","string","string"],"sleep_environment":["string","string","string"],"priority_fixes":["string","string"]}}';
-}
-
-
-// Convert Claude ingredient picks into full meal plan with JS-calculated macros
-function buildMealPlanFromIngredients(mealIngredients, days, proteinTarget, calorieTarget) {
-  var dayNames = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
-  var mealKeys = ['breakfast', 'shake', 'lunch', 'dinner', 'dessert'];
-  var trainingSchedules = {
-    2: [true, false, false, true, false, false, false],
-    3: [true, false, true, false, true, false, false],
-    4: [true, true, false, true, true, false, false],
-    5: [true, true, true, true, true, false, false],
-    6: [true, true, true, true, true, true, false]
-  };
-  var schedule = trainingSchedules[days] || trainingSchedules[4];
-
-  return mealIngredients.map(function(day, i) {
-    var isTraining = schedule[i] !== undefined ? schedule[i] : i < days;
-    var meals = {};
-    var dayTotal = 0;
-
-    mealKeys.forEach(function(meal) {
-      var ingredients = day[meal] || [];
-      if (!Array.isArray(ingredients)) ingredients = [];
-      var macros = calcMacros(ingredients);
-      var desc = buildDescription(ingredients);
-      meals[meal] = {
-        description: desc,
-        protein_g:   macros.protein_g,
-        carbs_g:     macros.carbs_g,
-        fat_g:       macros.fat_g,
-        calories:    macros.calories
-      };
-      dayTotal += macros.calories;
+  function tog(k, v) {
+    setForm(function(f) {
+      var arr = f[k] || [];
+      return Object.assign({}, f, { [k]: arr.indexOf(v) >= 0 ? arr.filter(function(x) { return x !== v; }) : arr.concat([v]) });
     });
-
-    return {
-      day:       day.day || dayNames[i],
-      type:      isTraining ? 'training' : 'rest',
-      breakfast: meals.breakfast,
-      shake:     meals.shake,
-      lunch:     meals.lunch,
-      dinner:    meals.dinner,
-      dessert:   meals.dessert,
-      day_total: dayTotal
-    };
-  });
-}
-
-
-
-function repairJson(str) {
-  var opens = [];
-  var inString = false;
-  var escape = false;
-  var lastGoodPos = 0;
-  for (var i = 0; i < str.length; i++) {
-    var c = str[i];
-    if (escape) { escape = false; continue; }
-    if (c === '\\' && inString) { escape = true; continue; }
-    if (c === '"') { inString = !inString; if (!inString) lastGoodPos = i + 1; continue; }
-    if (inString) continue;
-    if (c === '{' || c === '[') opens.push(c);
-    if (c === '}' || c === ']') { opens.pop(); lastGoodPos = i + 1; }
-    if (c !== ' ' && c !== '\n' && c !== '\r' && c !== '\t') lastGoodPos = i + 1;
   }
-  var result = str.substring(0, lastGoodPos).replace(/,\s*$/, '');
-  for (var j = opens.length - 1; j >= 0; j--) result += opens[j] === '{' ? '}' : ']';
-  return result;
-}
 
-function cleanAndParse(text) {
-  var match = text.match(/\{[\s\S]*\}/);
-  if (!match) throw new Error('No JSON in response');
-  var str = match[0]
-    .replace(/[\u2018\u2019]/g, "'")
-    .replace(/[\u201C\u201D]/g, '"')
-    .replace(/[\u2013\u2014]/g, '-')
-    .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '')
-    .replace(/,(\s*[}\]])/g, '$1');
-  try { return JSON.parse(str); }
-  catch(e) {
-    try { return JSON.parse(repairJson(str)); }
-    catch(e2) { throw new Error('JSON parse failed: ' + e.message); }
+  var total = STEPS.length;
+  var pct = Math.round(((step + 1) / total) * 100);
+
+  async function submit() {
+    setLoading(true); setErr(null);
+    try {
+      var payload = Object.assign({}, form, {
+        user_id: user.id,
+        age: parseInt(form.age) || null,
+        height_ft: parseInt(form.height_ft) || null,
+        height_in: parseInt(form.height_in) || null,
+        current_weight_lbs: parseFloat(form.current_weight_lbs) || null,
+        ideal_weight_lbs: parseFloat(form.ideal_weight_lbs) || null,
+        training_days_per_week: parseInt(form.training_days_per_week) || null,
+        session_length_mins: parseInt(form.session_length_mins) || null,
+        avg_sleep_hours: parseFloat(form.avg_sleep_hours) || null,
+        trigger_generate: false
+      });
+
+      // Save to intake_submissions (upsert on user_id)
+      var res = await fetch('/api/intake', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      if (!res.ok) throw new Error('Save failed');
+
+      // Trigger generation with the complete payload directly
+      fetch('/api/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: user.id, intake: payload })
+      }).catch(function(e) { console.error('Generate error:', e); });
+
+      setDone(true);
+    } catch(e) {
+      setErr('Something went wrong. Please try again.');
+    } finally {
+      setLoading(false);
+    }
   }
-}
 
-async function callClaude(prompt) {
-  var response = await fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': process.env.ANTHROPIC_API_KEY,
-      'anthropic-version': '2023-06-01'
-    },
-    body: JSON.stringify({
-      model: 'claude-haiku-4-5-20251001',
-      max_tokens: 4000,
-      messages: [{ role: 'user', content: prompt }]
-    })
-  });
-  if (!response.ok) {
-    var err = await response.text();
-    throw new Error('API failed: ' + err);
+  if (checking) {
+    return <div><style>{S}</style><div className="loading">Loading...</div></div>;
   }
-  var data = await response.json();
-  return data.content && data.content[0] ? data.content[0].text : '';
-}
 
-export default async function handler(req, res) {
-  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
-
-  var userId = req.body.userId;
-  var intakeData = req.body.intake;
-  if (!userId) return res.status(400).json({ error: 'userId required' });
-
-  var supabase = getSupabase();
-
-  try {
-    var intake = intakeData;
-    var profile = {};
-
-    if (!intake) {
-      var intakeRes = await supabase.from('intake_submissions').select('*').eq('user_id', userId).order('submitted_at', { ascending: false }).limit(1).single();
-      if (intakeRes.error || !intakeRes.data) return res.status(404).json({ error: 'Intake not found' });
-      intake = intakeRes.data;
-    }
-
-    var profileRes = await supabase.from('profiles').select('*').eq('id', userId).single();
-    if (profileRes.data) profile = profileRes.data;
-
-    var days = parseInt(intake.training_days_per_week) || 4;
-    var currentWeight = parseFloat(intake.current_weight_lbs) || 180;
-    var idealWeight = parseFloat(intake.ideal_weight_lbs) || currentWeight;
-    var proteinTarget = Math.round(idealWeight);
-    var proteinPerMeal = Math.round(proteinTarget / 5);
-
-    // Mifflin-St Jeor TDEE calculation
-    var weightKg = currentWeight * 0.453592;
-    var heightFt = parseFloat(intake.height_ft) || 5;
-    var heightIn = parseFloat(intake.height_in) || 10;
-    var heightCm = ((heightFt * 12) + heightIn) * 2.54;
-    var age = parseFloat(intake.age) || 30;
-    var sex = intake.sex || 'male';
-
-    var bmr;
-    if (sex === 'female') {
-      bmr = (10 * weightKg) + (6.25 * heightCm) - (5 * age) - 161;
-    } else {
-      bmr = (10 * weightKg) + (6.25 * heightCm) - (5 * age) + 5;
-    }
-
-    // Activity multiplier based on training days
-    var activityMultiplier;
-    if (days <= 2) activityMultiplier = 1.375;
-    else if (days <= 3) activityMultiplier = 1.465;
-    else if (days <= 4) activityMultiplier = 1.55;
-    else if (days <= 5) activityMultiplier = 1.637;
-    else activityMultiplier = 1.725;
-
-    var tdee = Math.round(bmr * activityMultiplier);
-
-    // Adjust for goal
-    var calorieTarget;
-    var goal = intake.goal_primary || 'build_muscle';
-    if (goal === 'lose_fat') calorieTarget = tdee - 400;
-    else if (goal === 'build_muscle' || goal === 'build_strength') calorieTarget = tdee + 300;
-    else if (goal === 'conditioning' || goal === 'general_health') calorieTarget = tdee;
-    else calorieTarget = tdee + 200;
-
-    // Macro split
-    var proteinCals = proteinTarget * 4;
-    var remainingCals = calorieTarget - proteinCals;
-
-    // Training day: 50% remaining to carbs, 50% to fat
-    // Rest day: 30% to carbs, 70% to fat (same total calories)
-    var carbsTraining = Math.round((remainingCals * 0.55) / 4);
-    var carbsRest = Math.round((remainingCals * 0.30) / 4);
-    var fatTraining = Math.round((remainingCals * 0.45) / 9);
-    var fatRest = Math.round((remainingCals * 0.70) / 9);
-
-    var goalSecondary = intake.goal_secondary || '';
-    var conditioningGoals = ['conditioning', 'general_health', 'lose_fat'];
-    var isPrimaryConditioning = conditioningGoals.indexOf(goal) !== -1;
-    var isSecondaryConditioning = conditioningGoals.indexOf(goalSecondary) !== -1;
-    var isAnyConditioning = isPrimaryConditioning || isSecondaryConditioning;
-    var isBeginner = (intake.experience_level || '') === 'beginner';
-
-    var splitType, splitDesc;
-
-    if (days <= 2) {
-      splitType = 'FULL BODY';
-      if (isAnyConditioning) {
-        splitDesc = 'GENERATE EXACTLY 2 DAY OBJECTS per block. Full body lifting both days, each ending with a 15 min cardio finisher. Day 1 finisher: Zone 2 (15 min incline walk or bike). Day 2 finisher: VO2 Max (3 x 4 min hard / 4 min easy). Structure per day: 1 compound lower, 1 horizontal push, 1 horizontal pull, 1 vertical movement, 2 accessories.';
-      } else {
-        splitDesc = 'GENERATE EXACTLY 2 DAY OBJECTS per block. Full body every session. Each session: 1 compound lower, 1 horizontal push, 1 horizontal pull, 1 vertical push or pull, 2-3 accessories.';
-      }
-    } else if (days === 3) {
-      if (isPrimaryConditioning) {
-        splitType = 'UPPER LOWER CARDIO';
-        if (isBeginner) {
-          splitDesc = 'GENERATE EXACTLY 3 DAY OBJECTS per block: Day 1 = Full Body lifting, Day 2 = Cardio only (no lifting), Day 3 = Full Body lifting. Cardio day: 30 min Zone 2 + 2 x 4 min VO2 Max. Full body: 1 compound lower, 1 horizontal push, 1 horizontal pull, 1 vertical movement, 2-3 accessories.';
-        } else {
-          splitDesc = 'GENERATE EXACTLY 3 DAY OBJECTS per block: Day 1 = Upper body lifting, Day 2 = Cardio only (no lifting), Day 3 = Lower body lifting. Cardio day: 20 min Zone 2 + 3 x 4 min VO2 Max + 6 x 30 sec Anaerobic.';
-        }
-      } else if (isSecondaryConditioning) {
-        splitType = 'FULL BODY';
-        splitDesc = 'GENERATE EXACTLY 3 DAY OBJECTS per block. Full body lifting all 3 days, each ending with a 15 min cardio finisher. Day 1 finisher: Zone 2. Day 2 finisher: VO2 Max. Day 3 finisher: Anaerobic. Structure: 1 compound lower, 1 horizontal push, 1 horizontal pull, 1 vertical movement, 2-3 accessories.';
-      } else {
-        splitType = 'FULL BODY';
-        splitDesc = 'GENERATE EXACTLY 3 DAY OBJECTS per block. Full body every session. Each session: 1 compound lower, 1 horizontal push, 1 horizontal pull, 1 vertical push or pull, 2-3 accessories.';
-      }
-    } else if (days === 4) {
-      if (isPrimaryConditioning) {
-        splitType = 'UPPER LOWER CARDIO';
-        splitDesc = 'GENERATE EXACTLY 4 DAY OBJECTS per block: Day 1 = Upper lifting, Day 2 = Lower lifting, Day 3 = Cardio only (no lifting), Day 4 = Cardio only (no lifting). Cardio day 3: 30 min Zone 2 + 3 x 4 min VO2 Max. Cardio day 4: 8 x 30 sec Anaerobic / 90 sec rest.';
-      } else if (isSecondaryConditioning) {
-        splitType = 'UPPER LOWER';
-        splitDesc = 'GENERATE EXACTLY 4 DAY OBJECTS per block: Day 1 = Upper A, Day 2 = Lower A, Day 3 = Upper B, Day 4 = Lower B. Each session ends with a 15 min cardio finisher (Upper A = Zone 2, Lower A = VO2 Max, Upper B = Zone 2, Lower B = Anaerobic). Upper = chest/back/shoulders/arms. Lower = quads/hamstrings/glutes/calves/abs.';
-      } else {
-        splitType = 'UPPER LOWER';
-        splitDesc = 'GENERATE EXACTLY 4 DAY OBJECTS per block: Day 1 = Upper A, Day 2 = Lower A, Day 3 = Upper B, Day 4 = Lower B. Upper = chest/back/shoulders/arms. Lower = quads/hamstrings/glutes/calves/abs.';
-      }
-    } else if (days === 5) {
-      // 5-day NEVER uses Lower/Pull/Push — always Upper/Lower/Cardio or Full Body/Cardio
-      if (isPrimaryConditioning) {
-        splitType = 'UPPER LOWER CARDIO';
-        splitDesc = 'GENERATE EXACTLY 5 DAY OBJECTS per block: Day 1 = Upper A, Day 2 = Lower A, Day 3 = Cardio only (no lifting), Day 4 = Upper B, Day 5 = Lower B. Cardio day: 20 min Zone 2 + 3 x 4 min VO2 Max + 6 x 30 sec Anaerobic.';
-      } else if (isSecondaryConditioning) {
-        splitType = 'UPPER LOWER CARDIO';
-        splitDesc = 'GENERATE EXACTLY 5 DAY OBJECTS per block: Day 1 = Upper A, Day 2 = Lower A, Day 3 = Cardio only (no lifting), Day 4 = Upper B, Day 5 = Lower B. Cardio day: 30 min Zone 2 + 3 x 4 min VO2 Max. Each lifting day ends with a 10 min cardio finisher.';
-      } else {
-        splitType = 'UPPER LOWER';
-        splitDesc = 'GENERATE EXACTLY 5 DAY OBJECTS per block: Day 1 = Upper A, Day 2 = Lower A, Day 3 = Upper B, Day 4 = Lower B, Day 5 = Full Body (lighter, higher rep accessory focus). Upper = chest/back/shoulders/arms. Lower = quads/hamstrings/glutes/calves/abs.';
-      }
-    } else {
-      // 6 days
-      if (isAnyConditioning) {
-        splitType = 'UPPER LOWER CARDIO';
-        splitDesc = 'GENERATE EXACTLY 6 DAY OBJECTS per block: Day 1 = Upper A, Day 2 = Lower A, Day 3 = Cardio only (no lifting), Day 4 = Upper B, Day 5 = Lower B, Day 6 = Cardio only (no lifting). Cardio day 3: Zone 2 + VO2 Max. Cardio day 6: Anaerobic intervals.';
-      } else {
-        splitType = 'LOWER PULL PUSH';
-        splitDesc = 'GENERATE EXACTLY 6 DAY OBJECTS per block: Day 1 = Lower A, Day 2 = Pull A, Day 3 = Push A, Day 4 = Lower B, Day 5 = Pull B, Day 6 = Push B. LOWER = quads/hamstrings/glutes/calves/abs. PULL = lats/traps/rear delts/biceps. PUSH = chest/front delts/triceps.';
-      }
-    }
-
-    // Create pending record
-    var insertResult = await supabase.from('generated_programs').insert({
-      user_id: userId, status: 'generating', generation_month: new Date().toISOString().slice(0, 7)
-    }).select().single();
-    var programId = insertResult.data ? insertResult.data.id : null;
-
-    // Run both calls in parallel
-    var trainingPrompt = buildTrainingPrompt(intake, profile, days, splitType, splitDesc);
-    var nutritionPrompt = buildNutritionSleepPrompt(intake, profile, days, proteinTarget, calorieTarget, carbsTraining, carbsRest, fatTraining, fatRest);
-
-    var results = [
-      await callClaude(trainingPrompt),
-      await callClaude(nutritionPrompt)
-    ];
-
-    var trainingData = cleanAndParse(results[0]);
-    var nutritionRaw = cleanAndParse(results[1]);
-
-    // JS calculates all macros from Claude's ingredient picks — no Claude math
-    var mealPlan = buildMealPlanFromIngredients(
-      nutritionRaw.meal_ingredients || [],
-      days, proteinTarget, calorieTarget
+  if (done) {
+    return (
+      <div>
+        <style>{S}</style>
+        <div className="wrap">
+          <div className="side">
+            <div className="logo">Rallis Regimen</div>
+            <div className="stitle">Your program is being updated.</div>
+            <div className="ssub">Head back to your dashboard.</div>
+          </div>
+          <div className="main">
+            <div className="sc">
+              <div className="si">✓</div>
+              <div className="sh">Profile <em>updated.</em></div>
+              <p className="sx">Your new program is generating. It will be ready in about 30 seconds.</p>
+              <button className="bn" style={{marginTop:32}} onClick={function(){router.push('/dashboard');}}>Go to Dashboard</button>
+            </div>
+          </div>
+        </div>
+      </div>
     );
-
-    var nutritionData = {
-      nutrition: {
-        daily_calories:    calorieTarget,
-        protein_g:         proteinTarget,
-        carbs_g_training:  carbsTraining,
-        carbs_g_rest:      carbsRest,
-        fat_g_training:    fatTraining,
-        fat_g_rest:        fatRest,
-        approach:          'Carb cycling — high carb training days, low carb rest days',
-        meal_plan:         mealPlan
-      },
-      sleep_protocol: nutritionRaw.sleep_protocol || {}
-    };
-
-    var updateData = {
-      program_name: intake.goal_primary + ' Program - ' + splitType,
-      program_type: splitType,
-      block_number: 1,
-      write_up: { greeting: 'Your program is ready.', goals: [intake.goal_primary], approach: [splitType + ' split, ' + days + ' days/week'] },
-      training_program: trainingData,
-      meal_plan: nutritionData.nutrition,
-      sleep_protocol: nutritionData.sleep_protocol,
-      environment_audit: null,
-      status: 'ready',
-      generated_at: new Date().toISOString()
-    };
-
-    if (programId) {
-      await supabase.from('generated_programs').update(updateData).eq('id', programId);
-    } else {
-      updateData.user_id = userId;
-      await supabase.from('generated_programs').insert(updateData);
-    }
-
-    return res.status(200).json({ success: true });
-
-  } catch (error) {
-    console.error('Generation error:', error);
-    if (userId) {
-      await supabase.from('generated_programs').update({ status: 'failed' }).eq('user_id', userId).eq('status', 'generating');
-    }
-    return res.status(500).json({ error: error.message || 'Generation failed' });
   }
+
+  return (
+    <div>
+      <style>{S}</style>
+      <div className="wrap">
+        <div className="side">
+          <div className="logo">Rallis Regimen</div>
+          <div className="stitle">Update Your Regimen</div>
+          <div className="ssub">Change anything. Your new program will generate automatically when you save.</div>
+          <div className="snav">
+            {STEPS.map(function(s, i) {
+              return (
+                <div key={i} className="sni">
+                  <div className={i === step ? 'sdot ac' : i < step ? 'sdot dn' : 'sdot'}>{i < step ? '✓' : '0' + (i+1)}</div>
+                  <div className={i === step ? 'slb ac' : 'slb'}>{s}</div>
+                </div>
+              );
+            })}
+          </div>
+          <div>
+            <div className="pb"><div className="pf" style={{ width: pct + '%' }} /></div>
+            <div className="plb">{pct}% complete</div>
+          </div>
+        </div>
+
+        <div className="main">
+          {step === 0 && (
+            <div>
+              <div className="ey">Step 1 of 5</div>
+              <h2 className="hd">About <em>you.</em></h2>
+              <p className="dc">Update your basic info. This recalculates your calorie targets and macro needs.</p>
+              <div className="fg"><label className="fl">First Name</label><input type="text" value={form.first_name} onChange={function(e){set('first_name',e.target.value);}} placeholder="Your first name" /></div>
+              <div className="r2">
+                <div className="fg"><label className="fl">Age</label><input type="number" value={form.age} onChange={function(e){set('age',e.target.value);}} placeholder="e.g. 34" min="16" max="90" /></div>
+                <div className="fg"><label className="fl">Sex</label><select value={form.sex} onChange={function(e){set('sex',e.target.value);}}><option value="">Select...</option><option value="male">Male</option><option value="female">Female</option><option value="other">Prefer not to say</option></select></div>
+              </div>
+              <div className="r2">
+                <div className="fg"><label className="fl">Current Weight (lbs)</label><input type="number" value={form.current_weight_lbs} onChange={function(e){set('current_weight_lbs',e.target.value);}} placeholder="e.g. 185" /></div>
+                <div className="fg"><label className="fl">Ideal Weight (lbs)</label><span className="fh">Where you feel and perform your best.</span><input type="number" value={form.ideal_weight_lbs} onChange={function(e){set('ideal_weight_lbs',e.target.value);}} placeholder="e.g. 175" /></div>
+              </div>
+            </div>
+          )}
+
+          {step === 1 && (
+            <div>
+              <div className="ey">Step 2 of 5</div>
+              <h2 className="hd">Your <em>goals.</em></h2>
+              <p className="dc">Pick one primary goal and one secondary. Your program is built around your number one priority.</p>
+              <div className="pb2">
+                <span className="plb2">Primary Goal <span className="bg bg1">#1 Priority</span></span>
+                <div className="og">{GOALS.map(function(g){return <OC key={g.id} selected={form.goal_primary===g.id} onClick={function(){set('goal_primary',g.id);if(form.goal_secondary===g.id)set('goal_secondary','');}} label={g.label} desc={g.desc} />;})}</div>
+              </div>
+              <div className="pb2">
+                <span className="plb2">Secondary Goal <span className="bg bg2">#2 Priority</span></span>
+                <span className="fh">Must be different from your primary goal.</span>
+                <div className="og">{GOALS.filter(function(g){return g.id!==form.goal_primary;}).map(function(g){return <OC key={g.id} selected={form.goal_secondary===g.id} onClick={function(){set('goal_secondary',g.id);}} label={g.label} desc={g.desc} />;})}</div>
+              </div>
+            </div>
+          )}
+
+          {step === 2 && (
+            <div>
+              <div className="ey">Step 3 of 5</div>
+              <h2 className="hd">Your training <em>situation.</em></h2>
+              <p className="dc">This determines your program structure, split, and exercise selection.</p>
+              <div className="fg"><label className="fl">Experience Level</label><div className="r3"><OC selected={form.experience_level==='beginner'} onClick={function(){set('experience_level','beginner');}} label="Beginner" desc="0-2 years" /><OC selected={form.experience_level==='intermediate'} onClick={function(){set('experience_level','intermediate');}} label="Intermediate" desc="3-7 years" /><OC selected={form.experience_level==='advanced'} onClick={function(){set('experience_level','advanced');}} label="Advanced" desc="8+ years" /></div></div>
+              <div className="r2">
+                <div className="fg"><label className="fl">Training Days/Week</label><select value={form.training_days_per_week} onChange={function(e){set('training_days_per_week',e.target.value);}}><option value="">Select...</option>{['2','3','4','5','6'].map(function(n){return <option key={n} value={n}>{n} days</option>;})}</select></div>
+                <div className="fg"><label className="fl">Session Length</label><select value={form.session_length_mins} onChange={function(e){set('session_length_mins',e.target.value);}}><option value="">Select...</option><option value="30">30 min</option><option value="45">45 min</option><option value="60">60 min</option><option value="90">90 min</option><option value="120">90+ min</option></select></div>
+              </div>
+              <div className="fg"><label className="fl">Primary Equipment</label><div className="og">{EQUIPMENT_CARDS.map(function(o){return <OC key={o.id} selected={form.equipment===o.id} onClick={function(){set('equipment',o.id);}} label={o.label} desc={o.desc} />;})}</div></div>
+              <div className="fg"><label className="fl">Specific Equipment</label><span className="fh">Select everything you have access to.</span><div className="og">{SPECIFIC_EQ.map(function(item){return <OC key={item} multi selected={(form.equipment_detail||[]).indexOf(item)>=0} onClick={function(){tog('equipment_detail',item);}} label={item} />;})}</div></div>
+              <div className="fg"><label className="fl">Burned out from training before?</label><div className="r3"><OC selected={form.burnout_history==='no'} onClick={function(){set('burnout_history','no');}} label="No" desc="Never had burnout" /><OC selected={form.burnout_history==='yes_mild'} onClick={function(){set('burnout_history','yes_mild');}} label="Somewhat" desc="Overtrained a few times" /><OC selected={form.burnout_history==='yes_severe'} onClick={function(){set('burnout_history','yes_severe');}} label="Yes" desc="Took significant time off" /></div></div>
+              <div className="fg"><label className="fl">Injuries or Limitations</label><span className="fh">Any injuries or movements to avoid? Leave blank if none.</span><textarea value={form.injuries_limitations} onChange={function(e){set('injuries_limitations',e.target.value);}} placeholder="e.g. Lower back issues, avoid heavy overhead pressing." /></div>
+            </div>
+          )}
+
+          {step === 3 && (
+            <div>
+              <div className="ey">Step 4 of 5</div>
+              <h2 className="hd">How you <em>fuel.</em></h2>
+              <p className="dc">Your nutrition plan is built around your training schedule, goals, and food preferences.</p>
+              <div className="fg"><label className="fl">Weight Management Goal</label><div className="r3"><OC selected={form.weight_management_goal==='bulk'} onClick={function(){set('weight_management_goal','bulk');}} label="Gain Weight" desc="Calorie surplus" /><OC selected={form.weight_management_goal==='maintain'} onClick={function(){set('weight_management_goal','maintain');}} label="Maintain" desc="Calorie maintenance" /><OC selected={form.weight_management_goal==='cut'} onClick={function(){set('weight_management_goal','cut');}} label="Lose Weight" desc="Calorie deficit" /></div></div>
+              <div className="fg"><label className="fl">Dietary Restrictions</label><span className="fh">Select all that apply.</span><div className="og">{DIETARY.map(function(d){return <OC key={d} multi selected={(form.dietary_restrictions||[]).indexOf(d)>=0} onClick={function(){tog('dietary_restrictions',d);}} label={d} />;})}</div></div>
+              <div className="fg"><label className="fl">Food Preferences</label><span className="fh">e.g. rotate protein sources, keep meals simple when traveling.</span><textarea value={form.food_preferences} onChange={function(e){set('food_preferences',e.target.value);}} placeholder="e.g. I like to rotate my protein sources." /></div>
+              <div className="fg"><label className="fl">Foods to Avoid</label><textarea value={form.foods_to_avoid} onChange={function(e){set('foods_to_avoid',e.target.value);}} placeholder="e.g. Sardines, organ meats, kefir" /></div>
+            </div>
+          )}
+
+          {step === 4 && (
+            <div>
+              <div className="ey">Step 5 of 5</div>
+              <h2 className="hd">How you <em>recover.</em></h2>
+              <p className="dc">Sleep is the primary driver of recovery and adaptation.</p>
+              <div className="r2">
+                <div className="fg"><label className="fl">Average Sleep Hours</label><input type="number" value={form.avg_sleep_hours} onChange={function(e){set('avg_sleep_hours',e.target.value);}} placeholder="e.g. 6.5" min="3" max="12" step="0.5" /></div>
+                <div className="fg"><label className="fl">Sleep Issues</label><select value={form.sleep_issue} onChange={function(e){set('sleep_issue',e.target.value);}}><option value="">Select...</option><option value="none">No issues</option><option value="falling_asleep">Trouble falling asleep</option><option value="staying_asleep">Trouble staying asleep</option><option value="both">Both</option></select></div>
+              </div>
+              <div className="r2">
+                <div className="fg"><label className="fl">Typical Bedtime</label><input type="text" value={form.typical_bedtime} onChange={function(e){set('typical_bedtime',e.target.value);}} placeholder="e.g. 10:30 PM" /></div>
+                <div className="fg"><label className="fl">Typical Wake Time</label><input type="text" value={form.typical_wake_time} onChange={function(e){set('typical_wake_time',e.target.value);}} placeholder="e.g. 6:30 AM" /></div>
+              </div>
+              <div style={{marginTop:'8px'}}>
+                <Tog label="Caffeine after noon" sub="Coffee, pre-workout, tea, or energy drinks after 12pm" value={form.caffeine_after_noon} onChange={function(v){set('caffeine_after_noon',v);}} />
+                <Tog label="Phone in bedroom" sub="Do you keep your phone in your bedroom while sleeping?" value={form.phone_in_bedroom} onChange={function(v){set('phone_in_bedroom',v);}} />
+              </div>
+              <div className="fg" style={{marginTop:'28px'}}>
+                <label className="fl">What does success look like to you?</label>
+                <span className="fh">In your own words — update this as your goals evolve.</span>
+                <textarea value={form.success_vision} onChange={function(e){set('success_vision',e.target.value);}} placeholder="e.g. I want to actually look as strong as I am." style={{minHeight:'100px'}} />
+              </div>
+              {err && <div className="em">{err}</div>}
+            </div>
+          )}
+
+          <div className="fnav">
+            {step > 0 ? <button className="bb" onClick={function(){setStep(function(s){return s-1;});}}>Back</button> : <button className="bb" onClick={function(){router.push('/dashboard');}}>← Dashboard</button>}
+            {step < total - 1
+              ? <button className="bn" onClick={function(){setStep(function(s){return s+1;});}}>Continue</button>
+              : <button className="bn" onClick={submit} disabled={loading}>{loading ? 'Saving...' : 'Update My Program'}</button>
+            }
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 }
