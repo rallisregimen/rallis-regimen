@@ -142,7 +142,6 @@ export default function IntakeForm() {
     first_name:'', age:'', sex:'', height_ft:'', height_in:'', current_weight_lbs:'', ideal_weight_lbs:'',
     goal_primary:'', goal_secondary:'',
     experience_level:'', training_days_per_week:'', session_length_mins:'',
-    equipment:'', equipment_detail:[], burnout_history:'', injuries_limitations:'',
     weight_management_goal:'', nutrition_approach:'',
     dietary_restrictions:[], food_preferences:'', foods_to_avoid:'',
     avg_sleep_hours:'', sleep_issue:'', typical_bedtime:'', typical_wake_time:'',
@@ -339,7 +338,6 @@ export default function IntakeForm() {
               </div>
               <div className="fg"><label className="fl">Primary Equipment <span className="fr">*</span></label><div className="og">{EQUIPMENT_CARDS.map(function(o){return <OC key={o.id} selected={form.equipment===o.id} onClick={function(){set('equipment',o.id);}} label={o.label} desc={o.desc} />;})}</div></div>
               <div className="fg"><label className="fl">Specific Equipment</label><span className="fh">Select everything you have access to.</span><div className="og">{SPECIFIC_EQ.map(function(item){return <OC key={item} multi selected={(form.equipment_detail||[]).indexOf(item)>=0} onClick={function(){tog('equipment_detail',item);}} label={item} />;})}</div></div>
-              <div className="fg"><label className="fl">Burned out from training before?</label><div className="r3"><OC selected={form.burnout_history==='no'} onClick={function(){set('burnout_history','no');}} label="No" desc="Never had burnout" /><OC selected={form.burnout_history==='yes_mild'} onClick={function(){set('burnout_history','yes_mild');}} label="Somewhat" desc="Overtrained a few times" /><OC selected={form.burnout_history==='yes_severe'} onClick={function(){set('burnout_history','yes_severe');}} label="Yes" desc="Took significant time off" /></div></div>
               <div className="fg"><label className="fl">Injuries or Limitations</label><span className="fh">Any injuries or movements to avoid? Leave blank if none.</span><textarea value={form.injuries_limitations} onChange={function(e){set('injuries_limitations',e.target.value);}} placeholder="e.g. Lower back issues, avoid heavy overhead pressing." /></div>
             </div>
           )}
