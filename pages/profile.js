@@ -20,6 +20,8 @@ export default function ProfilePage() {
     caffeine_after_noon: false, phone_in_bedroom: false
   });
   var form = formState[0]; var setForm = formState[1];
+  var existingIntakeState = useState(null);
+  var existingIntake = existingIntakeState[0]; var setExistingIntake = existingIntakeState[1];
 
   function set(k, v) { setForm(function(f) { return Object.assign({}, f, { [k]: v }); }); }
 
@@ -32,6 +34,7 @@ export default function ProfilePage() {
       var intakeRes = await supabase.from('intake_submissions').select('*').eq('user_id', u.id).order('submitted_at', { ascending: false }).limit(1).single();
       if (intakeRes.data) {
         var d = intakeRes.data;
+        setExistingIntake(d);
         setForm({
           first_name: d.first_name || '',
           age: d.age || '',
@@ -97,17 +100,18 @@ export default function ProfilePage() {
       var res = await fetch('/api/intake', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
+        body: JSON.stringify(Object.assign({}, payload, { trigger_generate: false }))
       });
 
       var resData = await res.json();
       if (!res.ok || resData.error) throw new Error(resData.error || 'Save failed');
 
-      // Trigger new program generation
+      // Trigger generation with full merged intake — existing intake provides fields not on profile form
+      var mergedIntake = Object.assign({}, existingIntake || {}, payload);
       fetch('/api/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId: user.id })
+        body: JSON.stringify({ userId: user.id, intake: mergedIntake })
       }).catch(function(e) { console.error('Generate error:', e); });
 
       setMsg({ type: 'success', text: 'Profile saved. Your new program is generating — check your dashboard in about 30 seconds.' });
