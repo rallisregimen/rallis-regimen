@@ -433,7 +433,7 @@ async function callClaude(prompt) {
     },
     body: JSON.stringify({
       model: 'claude-haiku-4-5-20251001',
-      max_tokens: 4000,
+      max_tokens: 6000,
       messages: [{ role: 'user', content: prompt }]
     })
   });
@@ -529,6 +529,8 @@ export default async function handler(req, res) {
     var isBeginner = (intake.experience_level || '') === 'beginner';
 
     var splitType, splitDesc;
+    var isAthletic = goal === 'athletic_performance' || goalSecondary === 'athletic_performance';
+    var athleticSuffix = isAthletic ? ' IMPORTANT: Each lifting day must start with 2-3 speed/power exercises (power clean, hang clean, KB swing, push press, box jump, speed squat, speed deadlift, med ball throw — pick appropriate ones). These go FIRST before any strength work. After speed/power, complete the full normal session at regular volume.' : '';
 
     if (days <= 2) {
       splitType = 'FULL BODY';
@@ -585,6 +587,8 @@ export default async function handler(req, res) {
         splitDesc = 'GENERATE EXACTLY 6 DAY OBJECTS per block: Day 1 = Lower A, Day 2 = Pull A, Day 3 = Push A, Day 4 = Lower B, Day 5 = Pull B, Day 6 = Push B. LOWER = quads/hamstrings/glutes/calves/abs. PULL = lats/traps/rear delts/biceps. PUSH = chest/front delts/triceps.';
       }
     }
+
+    splitDesc = splitDesc + athleticSuffix;
 
     // Create pending record
     var insertResult = await supabase.from('generated_programs').insert({
