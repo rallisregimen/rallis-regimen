@@ -414,7 +414,7 @@ async function callClaude(prompt) {
     },
     body: JSON.stringify({
       model: 'claude-haiku-4-5-20251001',
-      max_tokens: 6000,
+      max_tokens: 4000,
       messages: [{ role: 'user', content: prompt }]
     })
   });
@@ -568,10 +568,10 @@ export default async function handler(req, res) {
     var trainingPrompt = buildTrainingPrompt(intake, profile, days, splitType, splitDesc);
     var nutritionPrompt = buildNutritionSleepPrompt(intake, profile, days, proteinTarget, calorieTarget, carbsTraining, carbsRest, fatTraining, fatRest);
 
-    var results = await Promise.all([
-      callClaude(trainingPrompt),
-      callClaude(nutritionPrompt)
-    ]);
+    var results = [
+      await callClaude(trainingPrompt),
+      await callClaude(nutritionPrompt)
+    ];
 
     var trainingData = cleanAndParse(results[0]);
     var nutritionRaw = cleanAndParse(results[1]);
