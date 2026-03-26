@@ -19,7 +19,7 @@ var EQUIPMENT_CARDS = [
 ];
 
 var SPECIFIC_EQ = ['Barbell','Trap Bar','Safety Squat Bar','Dumbbells','Kettlebells','Cable Machines','Weight Machines','Resistance Bands','Pull-Up Bar'];
-var DIETARY = ['None','No red meat','No pork','Pescatarian','Vegetarian','Vegan','Gluten free','Dairy free','Halal','Kosher'];
+var DIETARY = ['None','No red meat','No pork','Pescatarian','Vegetarian','Gluten free','Dairy free'];
 var STEPS = ['About You','Goals','Training','Nutrition','Sleep'];
 
 var S = [
@@ -143,7 +143,7 @@ export default function IntakeForm() {
     goal_primary:'', goal_secondary:'',
     experience_level:'', training_days_per_week:'', session_length_mins:'',
     equipment:'', equipment_detail:[], burnout_history:'', injuries_limitations:'',
-    weight_management_goal:'', nutrition_approach:'', travel_frequency:'',
+    weight_management_goal:'', nutrition_approach:'',
     dietary_restrictions:[], food_preferences:'', foods_to_avoid:'',
     avg_sleep_hours:'', sleep_issue:'', typical_bedtime:'', typical_wake_time:'',
     caffeine_after_noon:false, phone_in_bedroom:false, success_vision:''
@@ -350,7 +350,6 @@ export default function IntakeForm() {
               <h2 className="hd">How you <em>fuel.</em></h2>
               <p className="dc">Your nutrition plan is built around your training schedule, goals, and food preferences.</p>
               <div className="fg"><label className="fl">Weight Management Goal <span className="fr">*</span></label><div className="r3"><OC selected={form.weight_management_goal==='bulk'} onClick={function(){set('weight_management_goal','bulk');}} label="Gain Weight" desc="Calorie surplus" /><OC selected={form.weight_management_goal==='maintain'} onClick={function(){set('weight_management_goal','maintain');}} label="Maintain" desc="Calorie maintenance" /><OC selected={form.weight_management_goal==='cut'} onClick={function(){set('weight_management_goal','cut');}} label="Lose Weight" desc="Calorie deficit" /></div></div>
-              <div className="fg"><label className="fl">How often do you eat away from home?</label><div className="og"><OC selected={form.travel_frequency==='rarely'} onClick={function(){set('travel_frequency','rarely');}} label="Rarely" desc="Cook most meals at home" /><OC selected={form.travel_frequency==='sometimes'} onClick={function(){set('travel_frequency','sometimes');}} label="1-2 days/week" desc="Occasional travel or eating out" /><OC selected={form.travel_frequency==='often'} onClick={function(){set('travel_frequency','often');}} label="3-4 days/week" desc="Travel several days a week" /><OC selected={form.travel_frequency==='mostly'} onClick={function(){set('travel_frequency','mostly');}} label="Most of the time" desc="Mostly eating out or premade" /></div></div>
               <div className="fg"><label className="fl">Dietary Restrictions</label><span className="fh">Select all that apply.</span><div className="og">{DIETARY.map(function(d){return <OC key={d} multi selected={form.dietary_restrictions.indexOf(d)>=0} onClick={function(){tog('dietary_restrictions',d);}} label={d} />;})}</div></div>
               <div className="fg"><label className="fl">Food Preferences</label><span className="fh">e.g. rotate protein sources, keep meals simple when traveling.</span><textarea value={form.food_preferences} onChange={function(e){set('food_preferences',e.target.value);}} placeholder="e.g. I like to rotate my protein sources." /></div>
               <div className="fg"><label className="fl">Foods to Avoid</label><textarea value={form.foods_to_avoid} onChange={function(e){set('foods_to_avoid',e.target.value);}} placeholder="e.g. Sardines, organ meats, kefir" /></div>
