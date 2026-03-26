@@ -428,17 +428,20 @@ export default function Dashboard() {
   }, [chatMessages, chatLoading]);
 
   useEffect(function() {
-    if (loading || program || !user) return;
+    if (loading || !user) return;
     var userId = user.id;
     var interval = setInterval(function() {
       supabase.from("generated_programs").select("*").eq("user_id", userId).eq("status", "ready").order("generated_at", { ascending: false }).limit(1).single().then(function(result) {
         if (result.data) {
-          setProgram(result.data);
+          // Update if no program yet, or if a newer one has been generated
+          if (!program || result.data.id !== program.id) {
+            setProgram(result.data);
+          }
         }
       });
     }, 5000);
     return function() { clearInterval(interval); };
-  }, [loading, program, user]);
+  }, [loading, user]);
 
   function getLogKey(dayLabel, exerciseName, setIndex) {
     return "w" + currentWeek + "--" + dayLabel + "--" + exerciseName + "--" + setIndex;
