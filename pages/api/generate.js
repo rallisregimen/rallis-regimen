@@ -161,6 +161,32 @@ function buildNutritionSleepPrompt(intake, profile, days, proteinTarget, calorie
   var restrictions = (intake.dietary_restrictions && intake.dietary_restrictions.join) ? intake.dietary_restrictions.join(', ') : 'none';
   var foodsToAvoid = intake.foods_to_avoid || 'none';
 
+  // Build restricted ingredient set so we never offer them to Claude
+  var restrictedIds = [];
+  var restrictionStr = restrictions.toLowerCase();
+  if (restrictionStr.includes('dairy')) {
+    restrictedIds = restrictedIds.concat(['greek_yogurt','cottage_cheese','whole_milk','cheese_oz']);
+  }
+  if (restrictionStr.includes('vegan') || restrictionStr.includes('vegetarian')) {
+    restrictedIds = restrictedIds.concat(['chicken_breast','turkey_breast','salmon','ground_beef_90',
+      'tuna_canned','shrimp','turkey_sausage','chicken_sausage','lean_bacon','whey_scoop']);
+  }
+  if (restrictionStr.includes('no red meat')) {
+    restrictedIds = restrictedIds.concat(['ground_beef_90']);
+  }
+  if (restrictionStr.includes('no pork')) {
+    restrictedIds = restrictedIds.concat(['lean_bacon']);
+  }
+  if (restrictionStr.includes('pescatarian')) {
+    restrictedIds = restrictedIds.concat(['chicken_breast','turkey_breast','ground_beef_90',
+      'turkey_sausage','chicken_sausage','lean_bacon']);
+  }
+  // Also parse foods_to_avoid freetext for common dairy terms
+  var avoidLower = foodsToAvoid.toLowerCase();
+  if (avoidLower.includes('dairy') || avoidLower.includes('milk') || avoidLower.includes('yogurt') || avoidLower.includes('cheese')) {
+    restrictedIds = restrictedIds.concat(['greek_yogurt','cottage_cheese','whole_milk','cheese_oz']);
+  }
+
   // Per-meal protein targets
   var pBreakfast = Math.round(proteinTarget * 0.20);
   var pShake     = Math.round(proteinTarget * 0.18);
@@ -201,31 +227,106 @@ function buildNutritionSleepPrompt(intake, profile, days, proteinTarget, calorie
   var riceCupsLunch      = Math.round(cLT / 45 * 10) / 10;  // approx cups rice
   var pbTbspShake        = Math.round(fST / 8);              // approx tbsp peanut butter
 
+  // All ingredients with macros
+  var allIngredientLines = [
+    '  egg (each): 6p/0c/5f',
+    '  egg_white (each): 4p/0c/0f',
+    '  chicken_breast (oz): 8.5p/0c/0.6f',
+    '  turkey_breast (oz): 8p/0c/0.7f',
+    '  salmon (oz): 7p/0c/2.2f',
+    '  ground_beef_90 (oz): 7p/0c/2.5f',
+    '  tuna_canned (oz): 6.6p/0c/0.3f',
+    '  shrimp (oz): 6p/0c/0.3f',
+    '  turkey_sausage (link): 7p/0.5c/4f',
+    '  chicken_sausage (link): 6p/1c/3.5f',
+    '  lean_bacon (slice): 3p/0c/2.5f',
+    '  whey_scoop (scoop): 24p/3c/1f',
+    '  greek_yogurt (cup): 20p/8c/5f',
+    '  cottage_cheese (cup): 25p/6c/5f',
+    '  oats (cup): 10p/54c/5f',
+    '  oats_half (half): 5p/27c/2.5f',
+    '  brown_rice (cup): 5p/45c/2f',
+    '  sweet_potato (med): 2p/26c/0f',
+    '  white_potato (med): 3p/37c/0f',
+    '  bread_wg (slice): 4p/15c/1f',
+    '  banana (each): 1p/27c/0f',
+    '  berries (cup): 1p/14c/0.5f',
+    '  apple (each): 0.5p/25c/0f',
+    '  honey (tbsp): 0p/17c/0f',
+    '  granola (qcup): 3p/20c/4f',
+    '  avocado_half (half): 1p/6c/11f',
+    '  peanut_butter (tbsp): 3.5p/3.5c/8f',
+    '  almond_butter (tbsp): 3p/3c/9f',
+    '  olive_oil (tbsp): 0p/0c/14f',
+    '  whole_milk (cup): 8p/12c/8f',
+    '  almond_milk (cup): 1p/1c/3f',
+    '  cheese_oz (oz): 7p/0.5c/9f',
+    '  spinach (cup): 1p/1c/0f',
+    '  broccoli (cup): 2.5p/6c/0f',
+    '  asparagus (cup): 2.5p/4c/0f'
+  ];
+
+  // Filter out restricted ingredients from the list Claude sees
+  var ingredientLines = allIngredientLines.filter(function(line) {
+    return !restrictedIds.some(function(id) { return line.trim().startsWith(id + ' '); });
+  });
+
+  // Pick safe defaults for example templates based on restrictions
+  var safeYogurt   = restrictedIds.indexOf('greek_yogurt') === -1 ? 'greek_yogurt' : 'cottage_cheese';
+  var safeMilk     = restrictedIds.indexOf('whole_milk') === -1 ? 'whole_milk' : 'almond_milk';
+  var safeChicken  = restrictedIds.indexOf('chicken_breast') === -1 ? 'chicken_breast' : 'salmon';
+  var safeSalmon   = restrictedIds.indexOf('salmon') === -1 ? 'salmon' : 'tuna_canned';
+  // If both dairy and whey are restricted (vegan), use egg_white as protein base for shake
+  var shakeProtein = restrictedIds.indexOf('whey_scoop') === -1 ? '{"id":"whey_scoop","qty":2}' : '{"id":"egg_white","qty":4}';
+  var shakeYogurt  = restrictedIds.indexOf('greek_yogurt') === -1 ? ',{"id":"greek_yogurt","qty":0.5}' : '';
+
   var dayNames = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
 
-  // Richer example templates so Claude sees complete meals
+  // Richer example templates
   var dayTemplate = function(d, type) {
     var isT = type === 'training';
     return '{"day":"' + d + '","type":"' + type + '",' +
       '"breakfast":[{"id":"egg","qty":4},{"id":"turkey_sausage","qty":2}' + (isT ? ',{"id":"oats_half","qty":1},{"id":"berries","qty":1}' : ',{"id":"avocado_half","qty":1}') + '],' +
-      '"shake":[{"id":"whey_scoop","qty":2},{"id":"whole_milk","qty":1},{"id":"banana","qty":1},{"id":"peanut_butter","qty":1}],' +
-      '"lunch":[{"id":"chicken_breast","qty":8}' + (isT ? ',{"id":"brown_rice","qty":1},{"id":"broccoli","qty":1}' : ',{"id":"avocado_half","qty":1},{"id":"spinach","qty":2},{"id":"olive_oil","qty":1}') + '],' +
-      '"dinner":[{"id":"salmon","qty":8},{"id":"asparagus","qty":1}' + (isT ? ',{"id":"sweet_potato","qty":1}' : ',{"id":"olive_oil","qty":1}') + '],' +
-      '"dessert":[{"id":"greek_yogurt","qty":1},{"id":"berries","qty":1},{"id":"honey","qty":1}]}';
+      '"shake":[' + shakeProtein + ',{"id":"' + safeMilk + '","qty":1},{"id":"banana","qty":1},{"id":"peanut_butter","qty":1}' + shakeYogurt + '],' +
+      '"lunch":[{"id":"' + safeChicken + '","qty":8}' + (isT ? ',{"id":"brown_rice","qty":1},{"id":"broccoli","qty":1}' : ',{"id":"avocado_half","qty":1},{"id":"spinach","qty":2},{"id":"olive_oil","qty":1}') + '],' +
+      '"dinner":[{"id":"' + safeSalmon + '","qty":8},{"id":"asparagus","qty":1}' + (isT ? ',{"id":"sweet_potato","qty":1}' : ',{"id":"olive_oil","qty":1}') + '],' +
+      '"dessert":[{"id":"' + safeYogurt + '","qty":1},{"id":"berries","qty":1},{"id":"honey","qty":1}]}';
   };
   var dayTemplates = [];
-  for (var d = 0; d < 7; d++) dayTemplates.push(dayTemplate(dayNames[d], d < days ? 'training' : 'rest'));
+  // Training day schedule by day count
+  // Index: 0=Mon, 1=Tue, 2=Wed, 3=Thu, 4=Fri, 5=Sat, 6=Sun
+  var trainingSchedules = {
+    2: [true, false, false, true, false, false, false],   // Mon, Thu
+    3: [true, false, true, false, true, false, false],    // Mon, Wed, Fri
+    4: [true, true, false, true, true, false, false],     // Mon, Tue, Thu, Fri
+    5: [true, true, true, true, true, false, false],      // Mon-Fri
+    6: [true, true, true, true, true, true, false]        // Mon-Sat
+  };
+  var schedule = trainingSchedules[days] || trainingSchedules[4];
 
-  return 'Choose ingredients for a 7-day meal plan. Return ONLY valid JSON, no other text.\n\nMEMBER: ' + name + ', ' + intake.age + 'yo ' + intake.sex + '. Goal: ' + intake.goal_primary + '. Restrictions: ' + restrictions + '. Avoid: ' + foodsToAvoid + '.\n\nDAILY TARGETS: ' + proteinTarget + 'g protein | Training: ' + carbsTraining + 'g carbs / ' + fatTraining + 'g fat | Rest: ' + carbsRest + 'g carbs / ' + fatRest + 'g fat\n\nPER-MEAL TARGETS (training day / rest day):\n  breakfast:  ~' + pBreakfast + 'g protein | ~' + cBT + 'g carbs (T) / ~' + cBR + 'g carbs (R) | ~' + fBT + 'g fat (T) / ~' + fBR + 'g fat (R)\n  shake:      ~' + pShake + 'g protein | ~' + cST + 'g carbs (T) / ~' + cSR + 'g carbs (R) | ~' + fST + 'g fat (T) / ~' + fSR + 'g fat (R)\n  lunch:      ~' + pLunch + 'g protein | ~' + cLT + 'g carbs (T) / ~' + cLR + 'g carbs (R) | ~' + fLT + 'g fat (T) / ~' + fLR + 'g fat (R)\n  dinner:     ~' + pDinner + 'g protein | ~' + cDT + 'g carbs (T) / ~' + cDR + 'g carbs (R) | ~' + fDT + 'g fat (T) / ~' + fDR + 'g fat (R)\n  dessert:    ~' + pDessert + 'g protein | ~' + cDeT + 'g carbs (T) / ~' + cDeR + 'g carbs (R) | ~' + fDeT + 'g fat (T) / ~' + fDeR + 'g fat (R)\n\nAVAILABLE INGREDIENT IDs (macros per unit, format p/c/f):\n  egg (each): 6p/0c/5f\n  egg_white (each): 4p/0c/0f\n  chicken_breast (oz): 8.5p/0c/0.6f\n  turkey_breast (oz): 8p/0c/0.7f\n  salmon (oz): 7p/0c/2.2f\n  ground_beef_90 (oz): 7p/0c/2.5f\n  tuna_canned (oz): 6.6p/0c/0.3f\n  shrimp (oz): 6p/0c/0.3f\n  turkey_sausage (link): 7p/0.5c/4f\n  chicken_sausage (link): 6p/1c/3.5f\n  lean_bacon (slice): 3p/0c/2.5f\n  whey_scoop (scoop): 24p/3c/1f\n  greek_yogurt (cup): 20p/8c/5f\n  cottage_cheese (cup): 25p/6c/5f\n  oats (cup): 10p/54c/5f\n  oats_half (half): 5p/27c/2.5f\n  brown_rice (cup): 5p/45c/2f\n  sweet_potato (med): 2p/26c/0f\n  white_potato (med): 3p/37c/0f\n  bread_wg (slice): 4p/15c/1f\n  banana (each): 1p/27c/0f\n  berries (cup): 1p/14c/0.5f\n  apple (each): 0.5p/25c/0f\n  honey (tbsp): 0p/17c/0f\n  granola (qcup): 3p/20c/4f\n  avocado_half (half): 1p/6c/11f\n  peanut_butter (tbsp): 3.5p/3.5c/8f\n  almond_butter (tbsp): 3p/3c/9f\n  olive_oil (tbsp): 0p/0c/14f\n  whole_milk (cup): 8p/12c/8f\n  almond_milk (cup): 1p/1c/3f\n  cheese_oz (oz): 7p/0.5c/9f\n  spinach (cup): 1p/1c/0f\n  broccoli (cup): 2.5p/6c/0f\n  asparagus (cup): 2.5p/4c/0f\n\nQUANTITY GUIDANCE — use these as starting points for hitting targets:\nPROTEIN: ' + pLunch + 'g at lunch = chicken_breast qty ' + Math.round(pLunch/8.5) + ', or salmon qty ' + Math.round(pLunch/7) + ', or ground_beef_90 qty ' + Math.round(pLunch/7) + '. ' + pDinner + 'g at dinner = similar. ' + pBreakfast + 'g at breakfast = ' + Math.round(pBreakfast/6) + ' eggs, or eggs + turkey_sausage combo.\nCARBS (training): ' + cBT + 'g at breakfast = oats qty ' + Math.round(cBT/54*10)/10 + ' cup' + (cBT > 54 ? 's' : '') + (cBT > 27 ? '' : ' (use oats_half for ~27g)') + '. ' + cLT + 'g at lunch = brown_rice qty ' + Math.round(cLT/45*10)/10 + ' cup' + (cLT > 45 ? 's' : '') + ', or sweet_potato qty ' + Math.round(cLT/26) + '. ' + cST + 'g in shake = banana qty ' + Math.round(cST/27) + (cST > 40 ? ' + berries qty 1' : '') + '.\nFAT (training): ' + fBT + 'g at breakfast comes from eggs naturally, or add avocado_half (11f) or peanut_butter (8f per tbsp). ' + fDT + 'g at dinner = salmon naturally has fat, or add olive_oil qty ' + Math.round(fDT/14) + '.\nFAT (rest day): ' + fLR + 'g at lunch = avocado_half (11f) + olive_oil qty ' + Math.round((fLR-11)/14) + '. ' + fDR + 'g at dinner = fatty fish or add olive_oil.\n\nRULES:\n1. For each meal output an array of {id, qty} objects — qty is always a positive number.\n2. BUILD COMPLETE MEALS with 3-5 ingredients each: protein source + carb source (training days) + vegetable or fruit + fat source + optional flavor item.\n3. VARY every day: rotate protein sources (chicken one day, salmon next, beef next), rotate carbs (rice vs sweet potato vs oats), rotate vegetables.\n4. BREAKFAST: eggs and/or greek_yogurt required. Add turkey_sausage or chicken_sausage for more protein. Training days: oats or bread_wg for carbs + fruit. Rest days: avocado or cheese instead of starch.\n5. SHAKE: whey_scoop qty 1-2 + whole_milk or almond_milk + banana or berries + peanut_butter or almond_butter.\n6. LUNCH: big protein qty to hit target + starchy carb on training days (brown_rice, sweet_potato, white_potato) + vegetable (broccoli, asparagus, spinach). Rest days: replace starch with avocado_half and olive_oil.\n7. DINNER: big protein + vegetable + small carb on training days. Rest days: more fat, no starch.\n8. DESSERT: greek_yogurt or cottage_cheese + berries + honey or granola.\n\nSLEEP PROTOCOL — one consistent protocol:\nBedtime: ' + sleepTime + '. Wake: ' + wakeTime + '. Issue: ' + sleepIssue + '. caffeine_after_noon=' + caffeine + ', phone_in_bedroom=' + phone + '.\nMorning: get up immediately, outdoor sunlight 10-30 min, early movement, cold shower 1-3 min morning only if sleep issues.\nEvening: lower lights after sunset, limit electronics 1-2hr before bed, hot bath/shower 60-90min before bed, stretching, slow exhale breathing, no large meals 2-3hr before bed.\nEnvironment: 60-68F, complete darkness, fan.\nSupplements if sleep issues: magnesium glycinate or apigenin. NEVER melatonin.\n\nOutput ONLY this JSON (replace all example ingredient arrays with your actual picks for each day):\n{"meal_ingredients":[' + dayTemplates.join(',') + '],"sleep_protocol":{"morning":["string","string","string"],"evening":["string","string","string"],"sleep_environment":["string","string","string"],"priority_fixes":["string","string"]}}';
-}
+  for (var d = 0; d < 7; d++) dayTemplates.push(dayTemplate(dayNames[d], schedule[d] ? 'training' : 'rest'));
+
+  var restrictionWarning = restrictedIds.length > 0
+    ? '\n\nHARD RESTRICTION — NEVER USE THESE INGREDIENTS: ' + restrictedIds.join(', ') + '. These are excluded due to dietary restrictions. Do not include them in any meal on any day.'
+    : '';
+
+  return 'Choose ingredients for a 7-day meal plan. Return ONLY valid JSON, no other text.\n\nMEMBER: ' + name + ', ' + intake.age + 'yo ' + intake.sex + '. Goal: ' + intake.goal_primary + '. Restrictions: ' + restrictions + '. Avoid: ' + foodsToAvoid + '.' + restrictionWarning + '\n\nDAILY TARGETS: ' + proteinTarget + 'g protein | Training: ' + carbsTraining + 'g carbs / ' + fatTraining + 'g fat | Rest: ' + carbsRest + 'g carbs / ' + fatRest + 'g fat\n\nPER-MEAL TARGETS (training day / rest day):\n  breakfast:  ~' + pBreakfast + 'g protein | ~' + cBT + 'g carbs (T) / ~' + cBR + 'g carbs (R) | ~' + fBT + 'g fat (T) / ~' + fBR + 'g fat (R)\n  shake:      ~' + pShake + 'g protein | ~' + cST + 'g carbs (T) / ~' + cSR + 'g carbs (R) | ~' + fST + 'g fat (T) / ~' + fSR + 'g fat (R)\n  lunch:      ~' + pLunch + 'g protein | ~' + cLT + 'g carbs (T) / ~' + cLR + 'g carbs (R) | ~' + fLT + 'g fat (T) / ~' + fLR + 'g fat (R)\n  dinner:     ~' + pDinner + 'g protein | ~' + cDT + 'g carbs (T) / ~' + cDR + 'g carbs (R) | ~' + fDT + 'g fat (T) / ~' + fDR + 'g fat (R)\n  dessert:    ~' + pDessert + 'g protein | ~' + cDeT + 'g carbs (T) / ~' + cDeR + 'g carbs (R) | ~' + fDeT + 'g fat (T) / ~' + fDeR + 'g fat (R)\n\nAVAILABLE INGREDIENT IDs (macros per unit, format p/c/f) — ONLY use IDs from this list:\n' + ingredientLines.join('\n') + '\n\nQUANTITY GUIDANCE — use these as starting points for hitting targets:\nPROTEIN: ' + pLunch + 'g at lunch = chicken_breast qty ' + Math.round(pLunch/8.5) + ', or salmon qty ' + Math.round(pLunch/7) + ', or ground_beef_90 qty ' + Math.round(pLunch/7) + '. ' + pDinner + 'g at dinner = similar. ' + pBreakfast + 'g at breakfast = ' + Math.round(pBreakfast/6) + ' eggs, or eggs + turkey_sausage combo.\nCARBS (training): ' + cBT + 'g at breakfast = oats qty ' + Math.round(cBT/54*10)/10 + ' cup' + (cBT > 54 ? 's' : '') + (cBT > 27 ? '' : ' (use oats_half for ~27g)') + '. ' + cLT + 'g at lunch = brown_rice qty ' + Math.round(cLT/45*10)/10 + ' cup' + (cLT > 45 ? 's' : '') + ', or sweet_potato qty ' + Math.round(cLT/26) + '. ' + cST + 'g in shake = banana qty ' + Math.round(cST/27) + (cST > 40 ? ' + berries qty 1' : '') + '.\nFAT (training): ' + fBT + 'g at breakfast comes from eggs naturally, or add avocado_half (11f) or peanut_butter (8f per tbsp). ' + fDT + 'g at dinner = salmon naturally has fat, or add olive_oil qty ' + Math.round(fDT/14) + '.\nFAT (rest day): ' + fLR + 'g at lunch = avocado_half (11f) + olive_oil qty ' + Math.round((fLR-11)/14) + '. ' + fDR + 'g at dinner = fatty fish or add olive_oil.\n\nRULES:\n1. For each meal output an array of {id, qty} objects — qty is always a positive number. Only use ingredient IDs from the list above.\n2. BUILD COMPLETE MEALS with 3-5 ingredients each: protein source + carb source (training days) + vegetable or fruit + fat source + optional flavor item.\n3. VARY every day: rotate protein sources (chicken one day, salmon next, beef next), rotate carbs (rice vs sweet potato vs oats), rotate vegetables.\n4. BREAKFAST: eggs and/or ' + (restrictedIds.indexOf('greek_yogurt') === -1 ? 'greek_yogurt' : 'cottage_cheese') + ' required. Add turkey_sausage or chicken_sausage for more protein. Training days: oats or bread_wg for carbs + fruit. Rest days: avocado or nut butter instead of starch.\n5. SHAKE: whey_scoop qty 1-2 + ' + safeMilk + ' + banana or berries + peanut_butter or almond_butter.\n6. LUNCH: big protein qty to hit target + starchy carb on training days (brown_rice, sweet_potato, white_potato) + vegetable (broccoli, asparagus, spinach). Rest days: replace starch with avocado_half and olive_oil.\n7. DINNER: big protein + vegetable + small carb on training days. Rest days: more fat, no starch.\n8. DESSERT: ' + (restrictedIds.indexOf('greek_yogurt') === -1 ? 'greek_yogurt' : 'berries') + ' or cottage_cheese base + berries + honey or granola.\n\nSLEEP PROTOCOL — one consistent protocol:\nBedtime: ' + sleepTime + '. Wake: ' + wakeTime + '. Issue: ' + sleepIssue + '. caffeine_after_noon=' + caffeine + ', phone_in_bedroom=' + phone + '.\nMorning: get up immediately, outdoor sunlight 10-30 min, early movement, cold shower 1-3 min morning only if sleep issues.\nEvening: lower lights after sunset, limit electronics 1-2hr before bed, hot bath/shower 60-90min before bed, stretching, slow exhale breathing, no large meals 2-3hr before bed.\nEnvironment: 60-68F, complete darkness, fan.\nSupplements if sleep issues: magnesium glycinate or apigenin. NEVER melatonin.\n\nOutput ONLY this JSON (replace all example ingredient arrays with your actual picks for each day):\n{"meal_ingredients":[' + dayTemplates.join(',') + '],"sleep_protocol":{"morning":["string","string","string"],"evening":["string","string","string"],"sleep_environment":["string","string","string"],"priority_fixes":["string","string"]}}';
 
 // Convert Claude ingredient picks into full meal plan with JS-calculated macros
 function buildMealPlanFromIngredients(mealIngredients, days, proteinTarget, calorieTarget) {
   var dayNames = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
   var mealKeys = ['breakfast', 'shake', 'lunch', 'dinner', 'dessert'];
+  var trainingSchedules = {
+    2: [true, false, false, true, false, false, false],
+    3: [true, false, true, false, true, false, false],
+    4: [true, true, false, true, true, false, false],
+    5: [true, true, true, true, true, false, false],
+    6: [true, true, true, true, true, true, false]
+  };
+  var schedule = trainingSchedules[days] || trainingSchedules[4];
 
   return mealIngredients.map(function(day, i) {
-    var isTraining = i < days;
+    var isTraining = schedule[i] !== undefined ? schedule[i] : i < days;
     var meals = {};
     var dayTotal = 0;
 
@@ -391,26 +492,68 @@ export default async function handler(req, res) {
 
     var goalSecondary = intake.goal_secondary || '';
     var conditioningGoals = ['conditioning', 'general_health', 'lose_fat'];
-    var isConditioningFocused = conditioningGoals.indexOf(goal) !== -1 || conditioningGoals.indexOf(goalSecondary) !== -1;
+    var strengthGoals = ['build_muscle', 'build_strength', 'athletic_performance'];
+    var isPrimaryConditioning = conditioningGoals.indexOf(goal) !== -1;
+    var isSecondaryConditioning = conditioningGoals.indexOf(goalSecondary) !== -1;
+    var isAnyConditioning = isPrimaryConditioning || isSecondaryConditioning;
+    var isPrimaryStrength = strengthGoals.indexOf(goal) !== -1;
+    var isBeginner = (intake.experience_level || '') === 'beginner';
+
+    var cardioNote = '\n\nCARDIO ENERGY SYSTEMS (rotate through these on cardio days or as finishers):\nZONE 2: 20-40 min continuous at 70-80% max HR, conversational pace. Incline walk, bike, swim.\nVO2 MAX: 3-8 min efforts at 85-95% max HR, 1:1 rest ratio. Run, rower, air bike.\nANAEROBIC: 20-60 sec max effort, 1:3 rest ratio. Sprints, sled, hill runs.\nCardio finisher (when added to end of lift): 15-20 min Zone 2 or 2-3 rounds of VO2 Max intervals.';
 
     var splitType, splitDesc;
-    if (days <= 3) {
+
+    if (days <= 2) {
       splitType = 'FULL BODY';
-      splitDesc = 'Full body every session. Each session: 1 compound lower, 1 horizontal push, 1 horizontal pull, 1 vertical push or pull, 2-3 accessories.';
+      if (isAnyConditioning) {
+        splitDesc = 'Full body lifting both days. Each session ends with a 20-min cardio finisher: Day 1 = Zone 2, Day 2 = VO2 Max intervals. Full body structure: 1 compound lower, 1 horizontal push, 1 horizontal pull, 1 vertical movement, 2 accessories.';
+      } else {
+        splitDesc = 'Full body every session. Each session: 1 compound lower, 1 horizontal push, 1 horizontal pull, 1 vertical push or pull, 2-3 accessories.';
+      }
+    } else if (days === 3) {
+      if (isPrimaryConditioning) {
+        // Health/conditioning primary — dedicate a full day to cardio
+        if (isBeginner) {
+          splitType = 'FULL BODY / CARDIO';
+          splitDesc = 'Day 1: Full Body lifting. Day 2: Dedicated cardio day (30-45 min Zone 2 + 2 rounds VO2 Max). Day 3: Full Body lifting. Full body structure: 1 compound lower, 1 horizontal push, 1 horizontal pull, 1 vertical movement, 2-3 accessories.';
+        } else {
+          splitType = 'UPPER / CARDIO / LOWER';
+          splitDesc = 'Day 1: Upper body (chest/back/shoulders/arms). Day 2: Dedicated cardio day (20 min Zone 2 + 3 rounds VO2 Max + 1 round Anaerobic). Day 3: Lower body (quads/hamstrings/glutes/calves/abs).';
+        }
+      } else if (isSecondaryConditioning) {
+        // Strength primary, conditioning secondary — add finishers
+        splitType = 'FULL BODY';
+        splitDesc = 'Full body lifting all 3 days with cardio finishers. Each session ends with 15-min cardio: Day 1 = Zone 2, Day 2 = VO2 Max intervals, Day 3 = Anaerobic sprints. Full body structure: 1 compound lower, 1 horizontal push, 1 horizontal pull, 1 vertical movement, 2-3 accessories.';
+      } else {
+        splitType = 'FULL BODY';
+        splitDesc = 'Full body every session. Each session: 1 compound lower, 1 horizontal push, 1 horizontal pull, 1 vertical push or pull, 2-3 accessories.';
+      }
     } else if (days === 4) {
-      splitType = 'UPPER LOWER';
-      splitDesc = 'Alternate Upper (chest/back/shoulders/biceps/triceps) and Lower (quads/hamstrings/glutes/calves/abs). Upper-Lower-rest-Upper-Lower-rest-rest.';
-    } else if ((days === 5 || days === 6) && isConditioningFocused) {
-      splitType = 'UPPER LOWER CARDIO';
-      var cardioCount = days - 4;
-      splitDesc = 'Upper/Lower x2 lifting days plus ' + cardioCount + ' dedicated cardio day(s). Lifting: Upper A (horizontal push/pull emphasis), Lower A (hip-dominant), Upper B (vertical push/pull emphasis), Lower B (quad-dominant). Cardio days rotate through three energy systems:\n\n' +
-        'ZONE 2 / AEROBIC CAPACITY: 30-60+ min continuous at 70-80% max HR. Just barely able to hold a conversation or nasal breathe. No rest intervals. Exercises: incline walk, hike, ruck, bike, swim, run at easy pace.\n\n' +
-        'MAX AEROBIC CAPACITY (VO2 MAX): 80-100% max HR. Either 5-25 min continuous or 3-8 min repeat efforts with 1:1-1:2 work:rest ratio. Rest by heart rate dropping to 80% max or ability to nasal breathe. Exercises: run, bike, rower, jump rope, boxing, sled push/pull, kettlebell circuit.\n\n' +
-        'MAX ANAEROBIC CAPACITY: Maximum effort under 2 min per interval, typically 30-60 sec. 1:1-1:3 work:rest. 1-6 min total work. Exercises: sprints, hill sprints, sled push/pull, air bike, stairs, burpees.\n\n' +
-        'For ' + days + ' days: schedule Upper A - Lower A - Cardio - Upper B - Lower B' + (cardioCount > 1 ? ' - Cardio - rest' : ' - rest - rest') + '. Cardio day 1 = Zone 2 + Max Aerobic superset. Cardio day 2 (if applicable) = Max Anaerobic work.';
-    } else {
-      splitType = 'LOWER PULL PUSH';
-      splitDesc = 'LOWER=quads+hamstrings+glutes+calves+abs, PULL=lats+traps+rear delts+biceps, PUSH=chest+front delts+triceps. ' + (days === 5 ? 'Lower-Pull-Push-rest-Lower-rest-rest' : 'Lower-Pull-Push-Lower-Pull-Push-rest') + '. Same muscle group needs 2+ days between sessions.';
+      if (isPrimaryConditioning) {
+        // Conditioning primary — 2 lifts, 2 cardio
+        splitType = 'UPPER / LOWER / CARDIO';
+        splitDesc = 'Day 1: Upper body. Day 2: Lower body. Day 3: Dedicated cardio (30 min Zone 2 + 3 rounds VO2 Max). Day 4: Dedicated cardio (Anaerobic intervals — 6-8 rounds, 30 sec on / 90 sec off). Shorten sessions to 45 min to accommodate.';
+      } else if (isSecondaryConditioning) {
+        // Strength primary, conditioning secondary — 4 lifts with cardio finishers
+        splitType = 'UPPER LOWER';
+        splitDesc = 'Upper A / Lower A / Upper B / Lower B. Each session shortened to 50 min to allow a 15-20 min cardio finisher at the end. Rotate finishers: Upper A = Zone 2, Lower A = VO2 Max, Upper B = Zone 2, Lower B = Anaerobic. Upper = chest/back/shoulders/arms. Lower = quads/hamstrings/glutes/calves/abs.';
+      } else {
+        splitType = 'UPPER LOWER';
+        splitDesc = 'Alternate Upper (chest/back/shoulders/biceps/triceps) and Lower (quads/hamstrings/glutes/calves/abs). Upper A - Lower A - Upper B - Lower B.';
+      }
+    } else if (days === 5 || days === 6) {
+      if (isAnyConditioning) {
+        splitType = 'UPPER LOWER CARDIO';
+        var cardioCount = days - 4;
+        splitDesc = 'Upper/Lower x2 lifting days plus ' + cardioCount + ' dedicated cardio day(s). Lifting: Upper A (horizontal push/pull emphasis), Lower A (hip-dominant), Upper B (vertical push/pull emphasis), Lower B (quad-dominant). Cardio days rotate through three energy systems:\n\n' +
+          'ZONE 2 / AEROBIC CAPACITY: 30-60+ min continuous at 70-80% max HR. Just barely able to hold a conversation or nasal breathe. No rest intervals. Exercises: incline walk, hike, ruck, bike, swim, run at easy pace.\n\n' +
+          'MAX AEROBIC CAPACITY (VO2 MAX): 80-100% max HR. Either 5-25 min continuous or 3-8 min repeat efforts with 1:1-1:2 work:rest ratio. Rest by heart rate dropping to 80% max or ability to nasal breathe. Exercises: run, bike, rower, jump rope, boxing, sled push/pull, kettlebell circuit.\n\n' +
+          'MAX ANAEROBIC CAPACITY: Maximum effort under 2 min per interval, typically 30-60 sec. 1:1-1:3 work:rest. 1-6 min total work. Exercises: sprints, hill sprints, sled push/pull, air bike, stairs, burpees.\n\n' +
+          'For ' + days + ' days: schedule Upper A - Lower A - Cardio - Upper B - Lower B' + (cardioCount > 1 ? ' - Cardio - rest' : ' - rest - rest') + '. Cardio day 1 = Zone 2 + Max Aerobic superset. Cardio day 2 (if applicable) = Max Anaerobic work.';
+      } else {
+        splitType = 'LOWER PULL PUSH';
+        splitDesc = 'LOWER=quads+hamstrings+glutes+calves+abs, PULL=lats+traps+rear delts+biceps, PUSH=chest+front delts+triceps. ' + (days === 5 ? 'Lower-Pull-Push-rest-Lower-rest-rest' : 'Lower-Pull-Push-Lower-Pull-Push-rest') + '. Same muscle group needs 2+ days between sessions.';
+      }
     }
 
     // Create pending record
