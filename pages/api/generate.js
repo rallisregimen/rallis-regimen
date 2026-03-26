@@ -22,13 +22,13 @@ function buildTrainingPrompt(intake, profile, days, splitType, splitDesc) {
 
   var repScheme;
   if (goal === 'build_strength') {
-    repScheme = 'Strength focus: main lifts 3-5 sets x 3-6 reps heavy, supplemental 3-4 sets x 6-10 reps, accessories 2-3 sets x 10-15 reps.';
+    repScheme = 'REP SCHEME: Main lifts 3-5 sets x 3-6 reps, supplemental 3-4 sets x 6-10 reps, accessories 2-3 sets x 10-15 reps. Heavy loads, full rest.';
   } else if (goal === 'athletic_performance') {
-    repScheme = 'Athletic focus: power movements 4-5 sets x 3-5 reps explosive, strength work 3-4 sets x 5-8 reps, conditioning accessories 3 sets x 10-15 reps.';
-  } else if (goal === 'conditioning') {
-    repScheme = 'Conditioning focus: circuit-style 3-4 sets x 12-20 reps, shorter rest periods, higher volume accessories.';
+    repScheme = 'REP SCHEME: Power movements 4-5 sets x 3-5 reps explosive, strength work 3-4 sets x 5-8 reps, conditioning accessories 3 sets x 10-15 reps.';
+  } else if (goal === 'conditioning' || goal === 'general_health') {
+    repScheme = 'REP SCHEME FOR LIFTING DAYS: 3-4 sets x 12-20 reps, moderate weight, 30-60 sec rest between sets. Higher rep ranges, shorter rest. Do NOT label lifting days as "conditioning circuit" — they are Upper, Lower, or Full Body days. Only dedicated cardio days get a cardio label.';
   } else {
-    repScheme = 'Hypertrophy focus: main lifts 3-4 sets x 6-10 reps, supplemental 3 sets x 8-12 reps, accessories 3 sets x 12-15 reps.';
+    repScheme = 'REP SCHEME: Main lifts 3-4 sets x 6-10 reps, supplemental 3 sets x 8-12 reps, accessories 3 sets x 12-15 reps.';
   }
 
   var structureGuide;
