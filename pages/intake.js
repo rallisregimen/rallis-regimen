@@ -218,15 +218,7 @@ export default function IntakeForm() {
       if (!res.ok) throw new Error('failed');
       setDone(true);
 
-      // Trigger generation and go to dashboard — generation runs in background
-      if (currentUser && currentUser.id) {
-        fetch('/api/generate', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ userId: currentUser.id })
-        }).catch(function(e) { console.error('Generate error:', e); });
-      }
-
+      // Generation is triggered by the intake API with full data — no need to call it again here
       // Go to dashboard after short delay — program will be generating in background
       setTimeout(function() { router.push('/dashboard'); }, 1500);
     } catch(e) {
