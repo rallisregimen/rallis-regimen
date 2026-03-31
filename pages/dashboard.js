@@ -293,6 +293,16 @@ export default function Dashboard() {
   var weightInput = weightInputState[0];
   var setWeightInput = weightInputState[1];
 
+  // Video modal state
+  var videoModalState = useState(null); // { exerciseName, youtubeId }
+  var videoModal = videoModalState[0];
+  var setVideoModal = videoModalState[1];
+
+  // Exercise video library cache
+  var videoLibraryState = useState({});
+  var videoLibrary = videoLibraryState[0];
+  var setVideoLibrary = videoLibraryState[1];
+
   var weightNoteState = useState("");
   var weightNote = weightNoteState[0];
   var setWeightNote = weightNoteState[1];
@@ -443,7 +453,36 @@ export default function Dashboard() {
     return function() { clearInterval(interval); };
   }, [loading, user]);
 
-  function getLogKey(dayLabel, exerciseName, setIndex) {
+  // Load video library from Supabase once
+  useEffect(function() {
+    supabase.from('exercise_videos').select('exercise_name, youtube_id, aliases').then(function(res) {
+      if (res.data) {
+        var lib = {};
+        res.data.forEach(function(row) {
+          if (row.youtube_id && row.youtube_id !== 'PENDING') {
+            var key = row.exercise_name.toLowerCase().trim();
+            lib[key] = row.youtube_id;
+            if (row.aliases) {
+              row.aliases.forEach(function(alias) {
+                lib[alias.toLowerCase().trim()] = row.youtube_id;
+              });
+            }
+          }
+        });
+        setVideoLibrary(lib);
+      }
+    });
+  }, []);
+
+  function getVideoId(exerciseName) {
+    if (!exerciseName) return null;
+    return videoLibrary[exerciseName.toLowerCase().trim()] || null;
+  }
+
+  function openVideo(exerciseName) {
+    var id = getVideoId(exerciseName);
+    if (id) setVideoModal({ exerciseName: exerciseName, youtubeId: id });
+  }
     return "w" + currentWeek + "--" + dayLabel + "--" + exerciseName + "--" + setIndex;
   }
 
@@ -769,7 +808,7 @@ export default function Dashboard() {
                                       <div>
                                         {si === 0 && (
                                           <div>
-                                            <div className="exercise-name">{ex.name}</div>
+                                          <div className="exercise-name" onClick={function() { openVideo(ex.name); }} style={getVideoId(ex.name) ? { cursor: 'pointer', textDecoration: 'underline', textDecorationStyle: 'dotted', textDecorationColor: 'var(--gold)' } : {}}>{ex.name}{getVideoId(ex.name) && <span style={{ marginLeft: 5, fontSize: 10, color: 'var(--gold)', fontFamily: 'Barlow Condensed, sans-serif', letterSpacing: '0.06em' }}>▶ VIDEO</span>}</div>
                                             {ex.note && <div className="exercise-target">{ex.note}</div>}
                                             {ex.rest && <div style={{ fontSize: 11, fontFamily: "Barlow Condensed, sans-serif", fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase", color: "var(--gold)", marginTop: 2 }}>Rest: {ex.rest}</div>}
                                           </div>
@@ -1190,6 +1229,27 @@ export default function Dashboard() {
 
         </div>
       </div>
+
+      {videoModal && (
+        <div onClick={function() { setVideoModal(null); }} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
+          <div onClick={function(e) { e.stopPropagation(); }} style={{ background: '#1a1a1a', width: '100%', maxWidth: 720, borderRadius: 4, overflow: 'hidden' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 18px', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+              <div style={{ fontFamily: 'Barlow Condensed, sans-serif', fontWeight: 700, fontSize: 14, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'white' }}>{videoModal.exerciseName}</div>
+              <button onClick={function() { setVideoModal(null); }} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.5)', cursor: 'pointer', fontSize: 20, lineHeight: 1, padding: '0 4px' }}>×</button>
+            </div>
+            <div style={{ position: 'relative', paddingBottom: '56.25%', height: 0 }}>
+              <iframe
+                src={'https://www.youtube.com/embed/' + videoModal.youtubeId + '?autoplay=1&rel=0'}
+                title={videoModal.exerciseName}
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                allowFullScreen
+                style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', border: 'none' }}
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }
