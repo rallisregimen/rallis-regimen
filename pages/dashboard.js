@@ -476,7 +476,27 @@ export default function Dashboard() {
 
   function getVideoId(exerciseName) {
     if (!exerciseName) return null;
-    return videoLibrary[exerciseName.toLowerCase().trim()] || null;
+    var name = exerciseName.toLowerCase().trim();
+    // Exact match
+    if (videoLibrary[name]) return videoLibrary[name];
+    // Fuzzy: find any key that contains all words from the exercise name
+    var words = name.split(/\s+/).filter(function(w) { return w.length > 3; });
+    if (words.length === 0) return null;
+    var keys = Object.keys(videoLibrary);
+    // Try: does any library key contain most of the exercise words?
+    for (var i = 0; i < keys.length; i++) {
+      var key = keys[i];
+      var matches = words.filter(function(w) { return key.indexOf(w) !== -1; });
+      if (matches.length >= Math.ceil(words.length * 0.7)) return videoLibrary[key];
+    }
+    // Try: does the exercise name contain any library key words?
+    for (var j = 0; j < keys.length; j++) {
+      var k = keys[j];
+      var kWords = k.split(/\s+/).filter(function(w) { return w.length > 4; });
+      var kMatches = kWords.filter(function(w) { return name.indexOf(w) !== -1; });
+      if (kMatches.length >= Math.ceil(kWords.length * 0.7) && kWords.length >= 2) return videoLibrary[k];
+    }
+    return null;
   }
 
   function openVideo(exerciseName) {
