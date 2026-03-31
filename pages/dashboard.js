@@ -481,52 +481,38 @@ export default function Dashboard() {
     // 1. Exact match
     if (videoLibrary[name]) return videoLibrary[name];
 
-    // 2. Alias match (already flattened into videoLibrary keys)
-    // Already covered by exact match above since aliases are stored as keys
+    // Only strip truly meaningless words — keep all fitness terms
+    var stopWords = ['the','and','with','sets','reps','your','each','side','using','some','that','from','or'];
 
-    // Generic fitness words that should NOT drive a match on their own
-    var genericWords = ['press','curl','raise','row','pull','push','lift','hold',
-      'barbell','dumbbell','cable','band','machine','weighted','single','double',
-      'arm','leg','body','the','and','with','sets','reps'];
-
-    // Extract meaningful words (length > 3, not generic)
-    function meaningfulWords(str) {
-      return str.split(/[\s\-\/]+/).filter(function(w) {
-        return w.length > 3 && genericWords.indexOf(w) === -1;
+    function meaningful(str) {
+      return str.split(/[\s\-\/\(\)]+/).filter(function(w) {
+        return w.length > 2 && stopWords.indexOf(w) === -1;
       });
     }
 
-    var nameWords = meaningfulWords(name);
+    var nameWords = meaningful(name);
+    if (nameWords.length === 0) return null;
 
-    // 3. Fuzzy: need at least one SPECIFIC meaningful word to match
-    //    AND overall word overlap must be >= 70%
-    if (nameWords.length > 0) {
-      var keys = Object.keys(videoLibrary);
-      var bestKey = null;
-      var bestScore = 0;
+    var keys = Object.keys(videoLibrary);
+    var bestKey = null;
+    var bestScore = 0;
 
-      for (var i = 0; i < keys.length; i++) {
-        var key = keys[i];
-        var keyWords = meaningfulWords(key);
-        if (keyWords.length === 0) continue;
+    for (var i = 0; i < keys.length; i++) {
+      var key = keys[i];
+      var keyWords = meaningful(key);
+      if (keyWords.length === 0) continue;
 
-        // Count how many meaningful words overlap
-        var overlap = nameWords.filter(function(w) { return key.indexOf(w) !== -1; });
-        var reverseOverlap = keyWords.filter(function(w) { return name.indexOf(w) !== -1; });
+      var overlap = nameWords.filter(function(w) { return key.indexOf(w) !== -1; });
+      var score = overlap.length / Math.max(nameWords.length, keyWords.length);
 
-        // Score: fraction of nameWords found in key
-        var score = overlap.length / Math.max(nameWords.length, keyWords.length);
-
-        // Require at least 1 meaningful word match AND score >= 0.6
-        if (overlap.length >= 1 && score >= 0.6 && score > bestScore) {
-          bestScore = score;
-          bestKey = key;
-        }
+      // Need at least 1 word overlap and 50% score
+      if (overlap.length >= 1 && score >= 0.5 && score > bestScore) {
+        bestScore = score;
+        bestKey = key;
       }
-      if (bestKey) return videoLibrary[bestKey];
     }
 
-    return null;
+    return bestKey ? videoLibrary[bestKey] : null;
   }
 
   function openVideo(exerciseName) {
