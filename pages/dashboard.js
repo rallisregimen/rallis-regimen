@@ -483,6 +483,8 @@ export default function Dashboard() {
     var id = getVideoId(exerciseName);
     if (id) setVideoModal({ exerciseName: exerciseName, youtubeId: id });
   }
+
+  function getLogKey(dayLabel, exerciseName, setIndex) {
     return "w" + currentWeek + "--" + dayLabel + "--" + exerciseName + "--" + setIndex;
   }
 
