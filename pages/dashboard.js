@@ -477,25 +477,55 @@ export default function Dashboard() {
   function getVideoId(exerciseName) {
     if (!exerciseName) return null;
     var name = exerciseName.toLowerCase().trim();
-    // Exact match
+
+    // 1. Exact match
     if (videoLibrary[name]) return videoLibrary[name];
-    // Fuzzy: find any key that contains all words from the exercise name
-    var words = name.split(/\s+/).filter(function(w) { return w.length > 3; });
-    if (words.length === 0) return null;
-    var keys = Object.keys(videoLibrary);
-    // Try: does any library key contain most of the exercise words?
-    for (var i = 0; i < keys.length; i++) {
-      var key = keys[i];
-      var matches = words.filter(function(w) { return key.indexOf(w) !== -1; });
-      if (matches.length >= Math.ceil(words.length * 0.7)) return videoLibrary[key];
+
+    // 2. Alias match (already flattened into videoLibrary keys)
+    // Already covered by exact match above since aliases are stored as keys
+
+    // Generic fitness words that should NOT drive a match on their own
+    var genericWords = ['press','curl','raise','row','pull','push','lift','hold',
+      'barbell','dumbbell','cable','band','machine','weighted','single','double',
+      'arm','leg','body','the','and','with','sets','reps'];
+
+    // Extract meaningful words (length > 3, not generic)
+    function meaningfulWords(str) {
+      return str.split(/[\s\-\/]+/).filter(function(w) {
+        return w.length > 3 && genericWords.indexOf(w) === -1;
+      });
     }
-    // Try: does the exercise name contain any library key words?
-    for (var j = 0; j < keys.length; j++) {
-      var k = keys[j];
-      var kWords = k.split(/\s+/).filter(function(w) { return w.length > 4; });
-      var kMatches = kWords.filter(function(w) { return name.indexOf(w) !== -1; });
-      if (kMatches.length >= Math.ceil(kWords.length * 0.7) && kWords.length >= 2) return videoLibrary[k];
+
+    var nameWords = meaningfulWords(name);
+
+    // 3. Fuzzy: need at least one SPECIFIC meaningful word to match
+    //    AND overall word overlap must be >= 70%
+    if (nameWords.length > 0) {
+      var keys = Object.keys(videoLibrary);
+      var bestKey = null;
+      var bestScore = 0;
+
+      for (var i = 0; i < keys.length; i++) {
+        var key = keys[i];
+        var keyWords = meaningfulWords(key);
+        if (keyWords.length === 0) continue;
+
+        // Count how many meaningful words overlap
+        var overlap = nameWords.filter(function(w) { return key.indexOf(w) !== -1; });
+        var reverseOverlap = keyWords.filter(function(w) { return name.indexOf(w) !== -1; });
+
+        // Score: fraction of nameWords found in key
+        var score = overlap.length / Math.max(nameWords.length, keyWords.length);
+
+        // Require at least 1 meaningful word match AND score >= 0.6
+        if (overlap.length >= 1 && score >= 0.6 && score > bestScore) {
+          bestScore = score;
+          bestKey = key;
+        }
+      }
+      if (bestKey) return videoLibrary[bestKey];
     }
+
     return null;
   }
 
@@ -1261,7 +1291,7 @@ export default function Dashboard() {
             </div>
             <div style={{ position: 'relative', paddingBottom: '56.25%', height: 0 }}>
               <iframe
-                src={'https://www.youtube.com/embed/' + videoModal.youtubeId + '?autoplay=1&rel=0'}
+                src={'https://www.youtube.com/embed/' + videoModal.youtubeId.split('?')[0] + '?autoplay=1&rel=0&modestbranding=1'}
                 title={videoModal.exerciseName}
                 allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                 allowFullScreen
