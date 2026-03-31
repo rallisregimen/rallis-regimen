@@ -808,7 +808,7 @@ export default function Dashboard() {
                                       <div>
                                         {si === 0 && (
                                           <div>
-                                          <div className="exercise-name" onClick={function() { openVideo(ex.name); }} style={getVideoId(ex.name) ? { cursor: 'pointer', textDecoration: 'underline', textDecorationStyle: 'dotted', textDecorationColor: 'var(--gold)' } : {}}>{ex.name}{getVideoId(ex.name) && <span style={{ marginLeft: 5, fontSize: 10, color: 'var(--gold)', fontFamily: 'Barlow Condensed, sans-serif', letterSpacing: '0.06em' }}>▶ VIDEO</span>}</div>
+                                          <div className="exercise-name" onClick={function() { openVideo(ex.name); }} style={getVideoId(ex.name) ? { cursor: 'pointer', textDecoration: 'underline', textDecorationStyle: 'dotted', textDecorationColor: 'var(--gold)' } : {}}>{ex.name}{getVideoId(ex.name) && <span style={{ marginLeft: 5, fontSize: 10, color: 'var(--gold)', fontFamily: 'Barlow Condensed, sans-serif', letterSpacing: '0.06em' }}>VIDEO</span>}</div>
                                             {ex.note && <div className="exercise-target">{ex.note}</div>}
                                             {ex.rest && <div style={{ fontSize: 11, fontFamily: "Barlow Condensed, sans-serif", fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase", color: "var(--gold)", marginTop: 2 }}>Rest: {ex.rest}</div>}
                                           </div>
@@ -1235,7 +1235,7 @@ export default function Dashboard() {
           <div onClick={function(e) { e.stopPropagation(); }} style={{ background: '#1a1a1a', width: '100%', maxWidth: 720, borderRadius: 4, overflow: 'hidden' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 18px', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
               <div style={{ fontFamily: 'Barlow Condensed, sans-serif', fontWeight: 700, fontSize: 14, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'white' }}>{videoModal.exerciseName}</div>
-              <button onClick={function() { setVideoModal(null); }} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.5)', cursor: 'pointer', fontSize: 20, lineHeight: 1, padding: '0 4px' }}>×</button>
+              <button onClick={function() { setVideoModal(null); }} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.5)', cursor: 'pointer', fontSize: 20, lineHeight: 1, padding: '0 4px' }}>&#x2715;</button>
             </div>
             <div style={{ position: 'relative', paddingBottom: '56.25%', height: 0 }}>
               <iframe
