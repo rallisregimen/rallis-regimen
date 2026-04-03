@@ -18,6 +18,32 @@ function buildTrainingPrompt(intake, profile, days, splitType, splitDesc) {
   var goal = intake.goal_primary || 'build_muscle';
   var goalSecondary = intake.goal_secondary || '';
 
+  // Build equipment exclusion note — applies even for full_gym members
+  var equipmentExclusions = '';
+  if (intake.equipment_to_avoid && intake.equipment_to_avoid.length > 0) {
+    equipmentExclusions = ' EQUIPMENT NOT AVAILABLE (do not program these even in a full gym): ' + intake.equipment_to_avoid.join(', ') + '.';
+  }
+  // For full_gym users: if they explicitly selected specific equipment,
+  // anything NOT in that list that requires specialty bars/implements should be excluded
+  if (equipment === 'full_gym' && intake.equipment_detail && intake.equipment_detail.length > 0) {
+    var specialtyItems = ['Trap Bar', 'Safety Squat Bar', 'Kettlebells', 'Resistance Bands', 'Pull-Up Bar'];
+    var missing = specialtyItems.filter(function(item) {
+      return intake.equipment_detail.indexOf(item) === -1;
+    });
+    if (missing.length > 0) {
+      equipmentExclusions += ' Member does NOT have access to: ' + missing.join(', ') + '. Do not program exercises that require these.';
+    }
+  }
+  // Also parse equipment_detail for explicit "no X" notes
+  if (intake.equipment_detail && Array.isArray(intake.equipment_detail)) {
+    var noItems = intake.equipment_detail.filter(function(item) {
+      return item && item.toLowerCase().startsWith('no ');
+    });
+    if (noItems.length > 0) {
+      equipmentExclusions += ' Member specifically noted they do NOT have: ' + noItems.join(', ') + '. Do not program these.';
+    }
+  }
+
   // Rep scheme based on primary goal
   var repScheme;
   if (goal === 'build_strength') {
@@ -39,7 +65,7 @@ function buildTrainingPrompt(intake, profile, days, splitType, splitDesc) {
   // Cardio day programming note
   var cardioNote = '';
   if (splitType === 'UPPER LOWER CARDIO') {
-    cardioNote = '\n\nCARDIO DAYS — program these as dedicated cardio sessions, no lifting:\n- Zone 2: 20-45 min continuous at 70-80% max HR, conversational pace. Incline walk, bike, row, swim.\n- VO2 Max: 3-6 x 4 min at 85-95% max HR, equal rest. Run, bike, rower.\n- Anaerobic: 6-10 x 30 sec max effort, 90 sec rest. Sprints, air bike, sled, stairs.\nEach cardio day programs 2-3 of these modalities as exercises with sets/reps (use duration as reps e.g. "20 min" or "4 min").';
+    cardioNote = '\n\nCARDIO DAYS — dedicated cardio only, no lifting. Format each modality as a separate exercise using EXACTLY these set/rep/rest conventions:\n- Zone 2 (aerobic base): sets=1, reps="20-40 min", rest="--", note="Conversational pace, 70-80% max HR. Incline walk, bike, or row."\n- VO2 Max (aerobic intervals): sets=number of intervals (e.g. 4), reps="4 min on", rest="4 min easy", note="85-95% max HR. Bike or rower."\n- Anaerobic (max effort intervals): sets=number of intervals (e.g. 8), reps="30 sec", rest="90 sec", note="Max effort, 95-100% max HR. Air bike, sled, or sprints."\nCRITICAL RULE: NEVER put VO2 Max intervals AND Anaerobic intervals on the same cardio day — both are high intensity and must be on separate days. A cardio day may pair Zone 2 with EITHER VO2 Max OR Anaerobic, but never both high-intensity modalities together.';
   }
 
   // Structure guide — only exercise patterns, no day counts (splitDesc handles that)
@@ -72,7 +98,7 @@ function buildTrainingPrompt(intake, profile, days, splitType, splitDesc) {
     ? '\n8. PLYOMETRICS: Every lifting day must include at least 1 plyometric or explosive movement exercise (box jump, broad jump, lateral bound, med ball slam, med ball throw, plyo push-up, jump squat). These count as part of the speed/power block at the start of the session.'
     : '';
 
-  return 'Generate ONLY the training section as valid JSON. No text outside JSON.\n\nMEMBER: ' + name + ', ' + intake.age + 'yo ' + intake.sex + ', ' + (intake.experience_level || 'intermediate') + '. Equipment: ' + equipment + '.' + equipmentDetail + ' Primary goal: ' + goal + '. Secondary goal: ' + (goalSecondary || 'none') + '. Session length: ' + (intake.session_length_mins || 60) + ' min.' + injuryNote + successNote + '\n\nSPLIT INSTRUCTIONS (follow exactly):\n' + splitDesc + '\n\n' + repScheme + speedPowerNote + '\n\n' + structureGuide + '\n\n' + blockProgression + cardioNote + '\n\nRULES:\n1. Each block\'s "days" array must have EXACTLY ' + days + ' objects — count before outputting.\n2. Day names must be descriptive: "Upper A", "Lower B", "Cardio", "Full Body". Never "string" or "-".\n3. ' + equipment + ': home_bands/bodyweight_only = no machines; dumbbells_only = no barbells or machines.\n4. No repeated exercises within the same session.\n5. Bands = 12-30 reps minimum.\n6. Max 3 compound exercises per day (4 for full body/bodyweight days).\n7. SESSION LENGTH IS ' + sessionMins + ' MINUTES. Each day must have exactly ' + exerciseCap + ' exercises total — no more. This is a hard limit to fit within the session time. Do not exceed it.\n8. Rest times: conditioning goal = 30-60 sec; hypertrophy = 60-90 sec isolation / 2-3 min compounds; strength = 3-5 min main lifts.' + plyoNote + '\n\nOutput ONLY this JSON structure (fill in all fields with real values, never use placeholder text):\n{"split":"' + splitType + '","weekly_schedule":{"day_1":"","day_2":"","day_3":"","day_4":"","day_5":"","day_6":"","day_7":""},"blocks":[{"block":1,"weeks":"1-4","days":[/* EXACTLY ' + days + ' day objects */]},{"block":2,"weeks":"5-8","days":[/* EXACTLY ' + days + ' day objects */]},{"block":3,"weeks":"9-12","days":[/* EXACTLY ' + days + ' day objects */]}]}\n\nDay object format: {"day":"Upper A","focus":"Horizontal push and pull","exercises":[{"name":"Barbell Bench Press","sets":4,"reps":"8-10","rir_week1":"3-4","rir_week2":"2-3","rir_week3":"1-2","rir_week4":"7-8 deload","rest":"2 min","note":"Control the descent, press explosively"}]}';
+  return 'Generate ONLY the training section as valid JSON. No text outside JSON.\n\nMEMBER: ' + name + ', ' + intake.age + 'yo ' + intake.sex + ', ' + (intake.experience_level || 'intermediate') + '. Equipment: ' + equipment + '.' + equipmentDetail + equipmentExclusions + ' Primary goal: ' + goal + '. Secondary goal: ' + (goalSecondary || 'none') + '. Session length: ' + (intake.session_length_mins || 60) + ' min.' + injuryNote + successNote + '\n\nSPLIT INSTRUCTIONS (follow exactly):\n' + splitDesc + '\n\n' + repScheme + speedPowerNote + '\n\n' + structureGuide + '\n\n' + blockProgression + cardioNote + '\n\nRULES:\n1. Each block\'s "days" array must have EXACTLY ' + days + ' objects — count before outputting.\n2. Day names must be descriptive: "Upper A", "Lower B", "Cardio", "Full Body". Never "string" or "-".\n3. ' + equipment + ': home_bands/bodyweight_only = no machines; dumbbells_only = no barbells or machines.\n4. No repeated exercises within the same session.\n5. Bands = 12-30 reps minimum.\n6. Max 3 compound exercises per day (4 for full body/bodyweight days).\n7. SESSION LENGTH IS ' + sessionMins + ' MINUTES. Each day must have exactly ' + exerciseCap + ' exercises total — no more. This is a hard limit to fit within the session time. Do not exceed it.\n8. Rest times: conditioning goal = 30-60 sec; hypertrophy = 60-90 sec isolation / 2-3 min compounds; strength = 3-5 min main lifts.' + plyoNote + '\n\nOutput ONLY this JSON structure (fill in all fields with real values, never use placeholder text):\n{"split":"' + splitType + '","weekly_schedule":{"day_1":"","day_2":"","day_3":"","day_4":"","day_5":"","day_6":"","day_7":""},"blocks":[{"block":1,"weeks":"1-4","days":[/* EXACTLY ' + days + ' day objects */]},{"block":2,"weeks":"5-8","days":[/* EXACTLY ' + days + ' day objects */]},{"block":3,"weeks":"9-12","days":[/* EXACTLY ' + days + ' day objects */]}]}\n\nDay object format: {"day":"Upper A","focus":"Horizontal push and pull","exercises":[{"name":"Barbell Bench Press","sets":4,"reps":"8-10","rir_week1":"3-4","rir_week2":"2-3","rir_week3":"1-2","rir_week4":"7-8 deload","rest":"2 min","note":"Control the descent, press explosively"}]}';
 }
 
 // INGREDIENT LOOKUP TABLE — [protein_g, carbs_g, fat_g] per unit
@@ -557,9 +583,9 @@ export default async function handler(req, res) {
       if (isPrimaryConditioning) {
         splitType = 'UPPER LOWER CARDIO';
         if (isBeginner) {
-          splitDesc = 'GENERATE EXACTLY 3 DAY OBJECTS per block: Day 1 = Full Body lifting, Day 2 = Cardio only (no lifting), Day 3 = Full Body lifting. Cardio day: 30 min Zone 2 + 2 x 4 min VO2 Max. Full body: 1 compound lower, 1 horizontal push, 1 horizontal pull, 1 vertical movement, 2-3 accessories.';
+          splitDesc = 'GENERATE EXACTLY 3 DAY OBJECTS per block: Day 1 = Full Body lifting, Day 2 = Cardio only (no lifting), Day 3 = Full Body lifting. Cardio day: 30 min Zone 2 + 3 x 4 min VO2 Max (Zone 2 first, then VO2 Max intervals). Full body: 1 compound lower, 1 horizontal push, 1 horizontal pull, 1 vertical movement, 2-3 accessories.';
         } else {
-          splitDesc = 'GENERATE EXACTLY 3 DAY OBJECTS per block: Day 1 = Upper body lifting, Day 2 = Cardio only (no lifting), Day 3 = Lower body lifting. Cardio day: 20 min Zone 2 + 3 x 4 min VO2 Max + 6 x 30 sec Anaerobic.';
+          splitDesc = 'GENERATE EXACTLY 3 DAY OBJECTS per block: Day 1 = Upper body lifting, Day 2 = Cardio only (no lifting), Day 3 = Lower body lifting. Cardio day: 30 min Zone 2 followed by 4 x 4 min VO2 Max intervals (4 min easy between). Do NOT include anaerobic/sprint intervals on this day.';
         }
       } else if (isSecondaryConditioning) {
         splitType = 'FULL BODY';
@@ -571,7 +597,7 @@ export default async function handler(req, res) {
     } else if (days === 4) {
       if (isPrimaryConditioning) {
         splitType = 'UPPER LOWER CARDIO';
-        splitDesc = 'GENERATE EXACTLY 4 DAY OBJECTS per block: Day 1 = Upper lifting, Day 2 = Lower lifting, Day 3 = Cardio only (no lifting), Day 4 = Cardio only (no lifting). Cardio day 3: 30 min Zone 2 + 3 x 4 min VO2 Max. Cardio day 4: 8 x 30 sec Anaerobic / 90 sec rest.';
+        splitDesc = 'GENERATE EXACTLY 4 DAY OBJECTS per block: Day 1 = Upper lifting, Day 2 = Lower lifting, Day 3 = Cardio only (no lifting), Day 4 = Cardio only (no lifting). Cardio day 3: 30 min Zone 2 + 4 x 4 min VO2 Max intervals (Zone 2 first). Cardio day 4: 8 x 30 sec Anaerobic max effort / 90 sec rest. Days 3 and 4 must use different modalities — no VO2 Max and Anaerobic on the same day.';
       } else if (isSecondaryConditioning) {
         splitType = 'UPPER LOWER';
         splitDesc = 'GENERATE EXACTLY 4 DAY OBJECTS per block: Day 1 = Upper A, Day 2 = Lower A, Day 3 = Upper B, Day 4 = Lower B. Each session ends with a 15 min cardio finisher (Upper A = Zone 2, Lower A = VO2 Max, Upper B = Zone 2, Lower B = Anaerobic). Upper = chest/back/shoulders/arms. Lower = quads/hamstrings/glutes/calves/abs.';
@@ -583,7 +609,7 @@ export default async function handler(req, res) {
       // 5-day NEVER uses Lower/Pull/Push — always Upper/Lower/Cardio or Full Body/Cardio
       if (isPrimaryConditioning) {
         splitType = 'UPPER LOWER CARDIO';
-        splitDesc = 'GENERATE EXACTLY 5 DAY OBJECTS per block: Day 1 = Upper A, Day 2 = Lower A, Day 3 = Cardio only (no lifting), Day 4 = Upper B, Day 5 = Lower B. Cardio day: 20 min Zone 2 + 3 x 4 min VO2 Max + 6 x 30 sec Anaerobic.';
+        splitDesc = 'GENERATE EXACTLY 5 DAY OBJECTS per block: Day 1 = Upper A, Day 2 = Lower A, Day 3 = Cardio only (no lifting), Day 4 = Upper B, Day 5 = Lower B. Cardio day 3: 30 min Zone 2 + 4 x 4 min VO2 Max intervals. Do NOT include anaerobic/sprint intervals on the same day as VO2 Max intervals — they must be on separate days.';
       } else if (isSecondaryConditioning) {
         splitType = 'UPPER LOWER CARDIO';
         splitDesc = 'GENERATE EXACTLY 5 DAY OBJECTS per block: Day 1 = Upper A, Day 2 = Lower A, Day 3 = Cardio only (no lifting), Day 4 = Upper B, Day 5 = Lower B. Cardio day: 30 min Zone 2 + 3 x 4 min VO2 Max. Each lifting day ends with a 10 min cardio finisher.';
