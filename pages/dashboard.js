@@ -397,11 +397,12 @@ export default function Dashboard() {
             p.first_name = meta.full_name ? meta.full_name.split(' ')[0] : (u.email ? u.email.split('@')[0] : 'Athlete');
           }
           setProfile(p);
-          // Redirect to intake if they haven't completed it yet
-          if (!p.has_completed_intake && !p.training_days_per_week) {
-            router.push('/intake');
-            return;
-          }
+          // Check intake_submissions to see if they've completed onboarding
+          supabase.from('intake_submissions').select('user_id').eq('user_id', u.id).single().then(function(intakeResult) {
+            if (!intakeResult.data) {
+              router.push('/intake');
+            }
+          });
         });
         supabase.from("generated_programs").select("*").eq("user_id", u.id).order("generated_at", { ascending: false }).limit(1).single().then(function(programResult) {
           setProgram(programResult.data || null);
@@ -422,8 +423,9 @@ export default function Dashboard() {
               p.first_name = meta.full_name ? meta.full_name.split(' ')[0] : (u.email ? u.email.split('@')[0] : 'Athlete');
             }
             setProfile(p);
-            // Redirect to intake if they haven't completed it yet
-            if (!p.has_completed_intake && !p.training_days_per_week) {
+            // Check intake_submissions to see if they've completed onboarding
+            var intakeCheck = await supabase.from('intake_submissions').select('user_id').eq('user_id', u.id).single();
+            if (!intakeCheck.data) {
               router.push('/intake');
               return;
             }
