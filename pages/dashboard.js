@@ -337,7 +337,6 @@ export default function Dashboard() {
   }
 
   var chatEndRef = useRef(null);
-  var intakeChecked = useRef(false);
 
   async function loadWeightLogs() {
     if (!user) return;
@@ -398,22 +397,10 @@ export default function Dashboard() {
             p.first_name = meta.full_name ? meta.full_name.split(' ')[0] : (u.email ? u.email.split('@')[0] : 'Athlete');
           }
           setProfile(p);
-          // Only redirect to intake if we haven't checked yet this session
-          // AND they have no intake submission
-          if (!intakeChecked.current) {
-            intakeChecked.current = true;
-            // Skip check if localStorage says they've completed intake before
-            var hasCompletedBefore = typeof window !== 'undefined' && localStorage.getItem('intake_completed_' + u.id);
-            if (!hasCompletedBefore) {
-              supabase.from('intake_submissions').select('user_id').eq('user_id', u.id).single().then(function(intakeResult) {
-                if (intakeResult.data) {
-                  // Cache result so we never check again
-                  try { localStorage.setItem('intake_completed_' + u.id, '1'); } catch(e) {}
-                } else {
-                  router.push('/intake');
-                }
-              });
-            }
+          // Redirect new users to intake if they haven't completed it
+          // has_completed_intake is set on profiles when intake is submitted
+          if (p.has_completed_intake === false) {
+            router.push('/intake');
           }
         });
         supabase.from("generated_programs").select("*").eq("user_id", u.id).order("generated_at", { ascending: false }).limit(1).single().then(function(programResult) {
