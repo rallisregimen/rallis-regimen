@@ -397,12 +397,14 @@ export default function Dashboard() {
             p.first_name = meta.full_name ? meta.full_name.split(' ')[0] : (u.email ? u.email.split('@')[0] : 'Athlete');
           }
           setProfile(p);
-          // Check intake_submissions to see if they've completed onboarding
-          supabase.from('intake_submissions').select('user_id').eq('user_id', u.id).single().then(function(intakeResult) {
-            if (!intakeResult.data) {
-              router.push('/intake');
-            }
-          });
+          // Only check intake on a real new sign-in, NOT on token refresh or tab wake
+          if (event === 'SIGNED_IN') {
+            supabase.from('intake_submissions').select('user_id').eq('user_id', u.id).single().then(function(intakeResult) {
+              if (!intakeResult.data) {
+                router.push('/intake');
+              }
+            });
+          }
         });
         supabase.from("generated_programs").select("*").eq("user_id", u.id).order("generated_at", { ascending: false }).limit(1).single().then(function(programResult) {
           setProgram(programResult.data || null);
@@ -423,12 +425,6 @@ export default function Dashboard() {
               p.first_name = meta.full_name ? meta.full_name.split(' ')[0] : (u.email ? u.email.split('@')[0] : 'Athlete');
             }
             setProfile(p);
-            // Check intake_submissions to see if they've completed onboarding
-            var intakeCheck = await supabase.from('intake_submissions').select('user_id').eq('user_id', u.id).single();
-            if (!intakeCheck.data) {
-              router.push('/intake');
-              return;
-            }
             var programResult = await supabase.from("generated_programs").select("*").eq("user_id", u.id).order("generated_at", { ascending: false }).limit(1).single();
             setProgram(programResult.data || null);
             setLoading(false);
