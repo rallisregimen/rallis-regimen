@@ -16,17 +16,7 @@ export default async function handler(req, res) {
   var supabase = getSupabase();
 
   try {
-    // Create/update profile server-side using service key (bypasses RLS)
-    if (data.user_id) {
-      await supabase.from('profiles').upsert({
-        id: data.user_id,
-        email: data.email || null,
-        full_name: data.first_name || null,
-        subscription_status: 'active',
-        updated_at: new Date().toISOString()
-      });
-    }
-
+    // Build intake payload
     var payload = {
       user_id: data.user_id || null,
       first_name: data.first_name || null,
@@ -66,31 +56,35 @@ export default async function handler(req, res) {
       submitted_at: new Date().toISOString()
     };
 
+    console.log('Inserting intake for user_id:', payload.user_id);
     var result = await supabase.from('intake_submissions').upsert(payload, { onConflict: 'user_id' });
 
     if (result.error) {
-      console.error('Intake upsert error:', result.error);
+      console.error('Intake insert error:', JSON.stringify(result.error));
       return res.status(500).json({ error: result.error.message });
     }
 
-    // Trigger program generation only if called from the intake form (not profile edit)
-    // Profile edit triggers generation itself with full intake data
-    if (data.user_id && data.trigger_generate !== false) {
-      try {
-        var appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://www.rallisregimen.com';
-        await fetch(appUrl + '/api/generate', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ userId: data.user_id, intake: payload })
-        });
-      } catch (genError) {
-        console.error('Generation trigger error:', genError);
-      }
+    console.log('Intake saved successfully for user:', payload.user_id);
+
+    // Mark intake as completed on profiles table
+    if (data.user_id) {
+      await supabase.from('profiles').update({ has_completed_intake: true }).eq('id', data.user_id);
     }
 
-    return res.status(200).json({ success: true });
+    // Return success immediately - trigger generation in background
+    res.status(200).json({ success: true });
+
+    // Fire and forget - profile + generation after response sent
+    if (data.user_id) {
+      var appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://www.rallisregimen.com';
+      fetch(appUrl + '/api/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: data.user_id })
+      }).catch(function(e) { console.error('Generate trigger error:', e.message); });
+    }
   } catch (err) {
-    console.error('Intake API error:', err);
-    return res.status(500).json({ error: 'Failed to save intake' });
+    console.error('Intake API error:', err.message, err.stack);
+    return res.status(500).json({ error: 'Failed to save intake: ' + err.message });
   }
 }
