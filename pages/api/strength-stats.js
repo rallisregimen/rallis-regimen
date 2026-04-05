@@ -119,7 +119,9 @@ export default async function handler(req, res) {
               return s.best.value > pr.value ? s.best : pr;
             }, recentSessions[0].best)
           : null,
-        timeline: timeline
+        // Trim chart timeline to last 52 sessions (~ 1 year) for readability
+        // All-time PR is computed above from the full history before this trim
+        timeline: timeline.slice(-52)
       });
     });
 
