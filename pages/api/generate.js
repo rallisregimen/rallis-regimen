@@ -9,7 +9,7 @@ function getSupabase() {
 
 export const config = { maxDuration: 60 };
 
-function buildTrainingPrompt(intake, profile, days, splitType, splitDesc) {
+function buildTrainingPrompt(intake, profile, days, splitType, splitDesc, hasCardio) {
   var name = profile.full_name || profile.first_name || 'Member';
   var equipment = intake.equipment || 'full_gym';
   var equipmentDetail = (intake.equipment_detail && intake.equipment_detail.length > 0)
@@ -18,29 +18,21 @@ function buildTrainingPrompt(intake, profile, days, splitType, splitDesc) {
   var goal = intake.goal_primary || 'build_muscle';
   var goalSecondary = intake.goal_secondary || '';
 
-  // Build equipment exclusion note — applies even for full_gym members
+  // Build equipment exclusion note
   var equipmentExclusions = '';
   if (intake.equipment_to_avoid && intake.equipment_to_avoid.length > 0) {
     equipmentExclusions = ' EQUIPMENT NOT AVAILABLE (do not program these even in a full gym): ' + intake.equipment_to_avoid.join(', ') + '.';
   }
-  // For full_gym users: if they explicitly selected specific equipment,
-  // anything NOT in that list that requires specialty bars/implements should be excluded
+  // For full_gym users: only exclude specialty items if the user actively
+  // used the specific equipment checklist AND did NOT check that item.
+  // If they checked nothing (empty array), assume the full gym has everything.
   if (equipment === 'full_gym' && intake.equipment_detail && intake.equipment_detail.length > 0) {
-    var specialtyItems = ['Trap Bar', 'Safety Squat Bar', 'Kettlebells', 'Resistance Bands', 'Pull-Up Bar'];
+    var specialtyItems = ['Trap Bar', 'Safety Squat Bar'];
     var missing = specialtyItems.filter(function(item) {
       return intake.equipment_detail.indexOf(item) === -1;
     });
     if (missing.length > 0) {
-      equipmentExclusions += ' Member does NOT have access to: ' + missing.join(', ') + '. Do not program exercises that require these.';
-    }
-  }
-  // Also parse equipment_detail for explicit "no X" notes
-  if (intake.equipment_detail && Array.isArray(intake.equipment_detail)) {
-    var noItems = intake.equipment_detail.filter(function(item) {
-      return item && item.toLowerCase().startsWith('no ');
-    });
-    if (noItems.length > 0) {
-      equipmentExclusions += ' Member specifically noted they do NOT have: ' + noItems.join(', ') + '. Do not program these.';
+      equipmentExclusions += ' Member does NOT have access to: ' + missing.join(', ') + '. Do not program exercises requiring these specific bars.';
     }
   }
 
@@ -62,10 +54,10 @@ function buildTrainingPrompt(intake, profile, days, splitType, splitDesc) {
     speedPowerNote = '\n\nSPEED & POWER (2-3 exercises at the START of each lifting day, before any other work):\n- 30-70% 1RM, move as fast as possible, 1-6 reps/set, 3-6 sets, 1-3 min rest\n- Exercises: power clean, hang clean, push press, speed squat, speed deadlift, KB swing, box jump, broad jump, med ball throw, plyo push-up\n- After speed/power work: complete the FULL lifting session at normal volume. Do not shorten the session.';
   }
 
-  // Cardio day programming note
+  // Cardio day programming note — applies whenever cardio is in the program
   var cardioNote = '';
-  if (splitType === 'UPPER LOWER CARDIO') {
-    cardioNote = '\n\nCARDIO DAYS — dedicated cardio only, no lifting. Format each modality as a separate exercise using EXACTLY these set/rep/rest conventions:\n- Zone 2 (aerobic base): sets=1, reps="20-40 min", rest="--", note="Conversational pace, 70-80% max HR. Incline walk, bike, or row."\n- VO2 Max (aerobic intervals): sets=number of intervals (e.g. 4), reps="4 min on", rest="4 min easy", note="85-95% max HR. Bike or rower."\n- Anaerobic (max effort intervals): sets=number of intervals (e.g. 8), reps="30 sec", rest="90 sec", note="Max effort, 95-100% max HR. Air bike, sled, or sprints."\nCRITICAL RULE: NEVER put VO2 Max intervals AND Anaerobic intervals on the same cardio day — both are high intensity and must be on separate days. A cardio day may pair Zone 2 with EITHER VO2 Max OR Anaerobic, but never both high-intensity modalities together.';
+  if (hasCardio || splitType === 'UPPER LOWER CARDIO') {
+    cardioNote = '\n\nCARDIO PROGRAMMING — Format each cardio modality as a separate exercise using EXACTLY these set/rep/rest conventions:\n- Zone 2 (aerobic base): sets=1, reps="20-40 min", rest="--", note="Conversational pace, 70-80% max HR. Incline walk, bike, or row."\n- VO2 Max (aerobic intervals): sets=number of intervals (e.g. 4), reps="4 min on", rest="4 min easy", note="85-95% max HR. Bike or rower."\n- Anaerobic (max effort intervals): sets=number of intervals (e.g. 8), reps="30 sec", rest="90 sec", note="Max effort, 95-100% max HR. Air bike, sled, or sprints."\nCRITICAL RULE: NEVER put VO2 Max intervals AND Anaerobic intervals on the same day — both are high intensity. A day may pair Zone 2 with EITHER VO2 Max OR Anaerobic, never both high-intensity modalities together.';
   }
 
   // Structure guide — only exercise patterns, no day counts (splitDesc handles that)
@@ -551,7 +543,8 @@ export default async function handler(req, res) {
     else if (goal === 'conditioning' || goal === 'general_health') calorieTarget = tdee;
     else calorieTarget = tdee + 200;
 
-    // Macro split
+    var calorieFloor = (sex === 'female') ? 1200 : 1500;
+    calorieTarget = Math.max(calorieTarget, calorieFloor);
     var proteinCals = proteinTarget * 4;
     var remainingCals = calorieTarget - proteinCals;
 
@@ -638,7 +631,7 @@ export default async function handler(req, res) {
     }).select().single();
     var programId = insertResult.data ? insertResult.data.id : null;
 
-    var trainingPrompt = buildTrainingPrompt(intake, profile, days, splitType, splitDesc);
+    var trainingPrompt = buildTrainingPrompt(intake, profile, days, splitType, splitDesc, isAnyConditioning);
     var nutritionPrompt = buildNutritionSleepPrompt(intake, profile, days, proteinTarget, calorieTarget, carbsTraining, carbsRest, fatTraining, fatRest);
 
     var results = [
