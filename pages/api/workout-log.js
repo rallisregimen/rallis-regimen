@@ -52,7 +52,7 @@ async function getLogs(req, res) {
       .select("*")
       .eq("user_id", userId)
       .order("logged_at", { ascending: false })
-      .limit(50);
+      .limit(500);
     return res.status(200).json({ logs: result.data || [] });
   } catch (err) {
     return res.status(500).json({ error: "Failed to fetch" });
