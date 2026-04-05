@@ -74,14 +74,24 @@ export default async function handler(req, res) {
     // Return success immediately - trigger generation in background
     res.status(200).json({ success: true });
 
-    // Fire and forget - profile + generation after response sent
+    // Fire and forget — generate with rate limiting (max 3 per day per user)
     if (data.user_id) {
       var appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://www.rallisregimen.com';
-      fetch(appUrl + '/api/generate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId: data.user_id })
-      }).catch(function(e) { console.error('Generate trigger error:', e.message); });
+      var today = new Date().toISOString().slice(0, 10);
+      var countRes = await supabase.from('generated_programs')
+        .select('id', { count: 'exact' })
+        .eq('user_id', data.user_id)
+        .gte('generated_at', today + 'T00:00:00Z');
+      var todayCount = countRes.count || 0;
+      if (todayCount < 3) {
+        fetch(appUrl + '/api/generate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId: data.user_id })
+        }).catch(function(e) { console.error('Generate trigger error:', e.message); });
+      } else {
+        console.log('Rate limit: user', data.user_id, 'has generated', todayCount, 'times today');
+      }
     }
   } catch (err) {
     console.error('Intake API error:', err.message, err.stack);
