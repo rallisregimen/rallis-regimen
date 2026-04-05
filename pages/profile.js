@@ -310,9 +310,15 @@ export default function ProfilePage() {
                 <div className="fg"><label className="fl">Sex</label><select value={form.sex} onChange={function(e){set('sex',e.target.value);}}><option value="">Select...</option><option value="male">Male</option><option value="female">Female</option><option value="other">Prefer not to say</option></select></div>
               </div>
               <div className="r2">
+                <div className="fg"><label className="fl">Height</label>
+                  <div style={{display:'flex',gap:8}}>
+                    <input type="number" value={form.height_ft} onChange={function(e){set('height_ft',e.target.value);}} placeholder="ft" min="3" max="8" style={{width:'50%'}} />
+                    <input type="number" value={form.height_in} onChange={function(e){set('height_in',e.target.value);}} placeholder="in" min="0" max="11" style={{width:'50%'}} />
+                  </div>
+                </div>
                 <div className="fg"><label className="fl">Current Weight (lbs)</label><input type="number" value={form.current_weight_lbs} onChange={function(e){set('current_weight_lbs',e.target.value);}} placeholder="e.g. 185" /></div>
-                <div className="fg"><label className="fl">Ideal Weight (lbs)</label><span className="fh">Where you feel and perform your best.</span><input type="number" value={form.ideal_weight_lbs} onChange={function(e){set('ideal_weight_lbs',e.target.value);}} placeholder="e.g. 175" /></div>
               </div>
+              <div className="fg"><label className="fl">Ideal Weight (lbs)</label><span className="fh">Where you feel and perform your best.</span><input type="number" value={form.ideal_weight_lbs} onChange={function(e){set('ideal_weight_lbs',e.target.value);}} placeholder="e.g. 175" /></div>
             </div>
           )}
 
