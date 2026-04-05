@@ -142,6 +142,8 @@ export default function IntakeForm() {
     first_name:'', age:'', sex:'', height_ft:'', height_in:'', current_weight_lbs:'', ideal_weight_lbs:'',
     goal_primary:'', goal_secondary:'',
     experience_level:'', training_days_per_week:'', session_length_mins:'',
+    equipment:'', equipment_detail:[],
+    injuries_limitations:'',
     weight_management_goal:'', nutrition_approach:'',
     dietary_restrictions:[], food_preferences:'', foods_to_avoid:'',
     avg_sleep_hours:'', sleep_issue:'', typical_bedtime:'', typical_wake_time:'',
@@ -177,6 +179,33 @@ export default function IntakeForm() {
     };
   }, []);
 
+  function validateStep(s) {
+    if (s === 0) {
+      if (!form.first_name.trim()) return 'Please enter your first name.';
+      if (!form.age) return 'Please enter your age.';
+      if (!form.sex) return 'Please select your sex.';
+      if (!form.height_ft) return 'Please enter your height.';
+      if (!form.current_weight_lbs) return 'Please enter your current weight.';
+      if (!form.ideal_weight_lbs) return 'Please enter your ideal weight.';
+    }
+    if (s === 1) {
+      if (!form.goal_primary) return 'Please select a primary goal.';
+    }
+    if (s === 2) {
+      if (!form.experience_level) return 'Please select your experience level.';
+      if (!form.training_days_per_week) return 'Please select how many days per week you train.';
+      if (!form.session_length_mins) return 'Please select your session length.';
+      if (!form.equipment) return 'Please select your primary equipment.';
+    }
+    if (s === 3) {
+      if (!form.weight_management_goal) return 'Please select your weight management goal.';
+    }
+    if (s === 4) {
+      if (!form.avg_sleep_hours) return 'Please enter your average sleep hours.';
+    }
+    return null;
+  }
+
   function set(k, v) {
     setForm(function(f) { return Object.assign({}, f, { [k]: v }); });
   }
@@ -192,6 +221,8 @@ export default function IntakeForm() {
 
   async function submit() {
     setLoading(true); setErr(null);
+    var validationErr = validateStep(4);
+    if (validationErr) { setErr(validationErr); setLoading(false); return; }
     try {
       var sessionResult = await supabase.auth.getSession();
       var currentUser = sessionResult.data && sessionResult.data.session ? sessionResult.data.session.user : user;
@@ -286,7 +317,7 @@ export default function IntakeForm() {
         <div className="main">
           {step === 0 && (
             <div>
-              <div className="ey">Step 1 of 6</div>
+              <div className="ey">Step 1 of 5</div>
               <h2 className="hd">Tell us about <em>you.</em></h2>
               <p className="dc">Basic information to calculate your calorie targets, macro needs, and program structure.</p>
               <div className="fg"><label className="fl">First Name <span className="fr">*</span></label><input type="text" value={form.first_name} onChange={function(e){set('first_name',e.target.value);}} placeholder="Your first name" /></div>
@@ -295,15 +326,21 @@ export default function IntakeForm() {
                 <div className="fg"><label className="fl">Sex <span className="fr">*</span></label><select value={form.sex} onChange={function(e){set('sex',e.target.value);}}><option value="">Select...</option><option value="male">Male</option><option value="female">Female</option><option value="other">Prefer not to say</option></select></div>
               </div>
               <div className="r2">
+                <div className="fg"><label className="fl">Height <span className="fr">*</span></label>
+                  <div style={{display:'flex',gap:8}}>
+                    <input type="number" value={form.height_ft} onChange={function(e){set('height_ft',e.target.value);}} placeholder="ft" min="3" max="8" style={{width:'50%'}} />
+                    <input type="number" value={form.height_in} onChange={function(e){set('height_in',e.target.value);}} placeholder="in" min="0" max="11" style={{width:'50%'}} />
+                  </div>
+                </div>
                 <div className="fg"><label className="fl">Current Weight (lbs) <span className="fr">*</span></label><input type="number" value={form.current_weight_lbs} onChange={function(e){set('current_weight_lbs',e.target.value);}} placeholder="e.g. 185" /></div>
-                <div className="fg"><label className="fl">Ideal Weight (lbs) <span className="fr">*</span></label><span className="fh">Where you feel and perform your best.</span><input type="number" value={form.ideal_weight_lbs} onChange={function(e){set('ideal_weight_lbs',e.target.value);}} placeholder="e.g. 175" /></div>
               </div>
+              <div className="fg"><label className="fl">Ideal Weight (lbs) <span className="fr">*</span></label><span className="fh">Where you feel and perform your best.</span><input type="number" value={form.ideal_weight_lbs} onChange={function(e){set('ideal_weight_lbs',e.target.value);}} placeholder="e.g. 175" /></div>
             </div>
           )}
 
           {step === 1 && (
             <div>
-              <div className="ey">Step 2 of 6</div>
+              <div className="ey">Step 2 of 5</div>
               <h2 className="hd">What are you here <em>for?</em></h2>
               <p className="dc">Pick one primary goal and one secondary. Your program is built around your number one priority.</p>
               <div className="pb2">
@@ -320,7 +357,7 @@ export default function IntakeForm() {
 
           {step === 2 && (
             <div>
-              <div className="ey">Step 3 of 6</div>
+              <div className="ey">Step 3 of 5</div>
               <h2 className="hd">Your training <em>situation.</em></h2>
               <p className="dc">This determines your program structure, split, and exercise selection.</p>
               <div className="fg"><label className="fl">Experience Level <span className="fr">*</span></label><div className="r3"><OC selected={form.experience_level==='beginner'} onClick={function(){set('experience_level','beginner');}} label="Beginner" desc="0-2 years" /><OC selected={form.experience_level==='intermediate'} onClick={function(){set('experience_level','intermediate');}} label="Intermediate" desc="3-7 years" /><OC selected={form.experience_level==='advanced'} onClick={function(){set('experience_level','advanced');}} label="Advanced" desc="8+ years" /></div></div>
@@ -336,7 +373,7 @@ export default function IntakeForm() {
 
           {step === 3 && (
             <div>
-              <div className="ey">Step 4 of 6</div>
+              <div className="ey">Step 4 of 5</div>
               <h2 className="hd">How you <em>fuel.</em></h2>
               <p className="dc">Your nutrition plan is built around your training schedule, goals, and food preferences.</p>
               <div className="fg"><label className="fl">Weight Management Goal <span className="fr">*</span></label><div className="r3"><OC selected={form.weight_management_goal==='bulk'} onClick={function(){set('weight_management_goal','bulk');}} label="Gain Weight" desc="Calorie surplus" /><OC selected={form.weight_management_goal==='maintain'} onClick={function(){set('weight_management_goal','maintain');}} label="Maintain" desc="Calorie maintenance" /><OC selected={form.weight_management_goal==='cut'} onClick={function(){set('weight_management_goal','cut');}} label="Lose Weight" desc="Calorie deficit" /></div></div>
@@ -372,10 +409,17 @@ export default function IntakeForm() {
             </div>
           )}
 
+          {err && step < 4 && <div className="em" style={{marginBottom:16}}>{err}</div>}
+
           <div className="fnav">
-            {step > 0 ? <button className="bb" onClick={function(){setStep(function(s){return s-1;});}}>Back</button> : <span />}
+            {step > 0 ? <button className="bb" onClick={function(){setStep(function(s){return s-1;});setErr(null);}}>Back</button> : <span />}
             {step < total - 1
-              ? <button className="bn" onClick={function(){setStep(function(s){return s+1;});}}>Continue</button>
+              ? <button className="bn" onClick={function(){
+                  var e = validateStep(step);
+                  if (e) { setErr(e); return; }
+                  setErr(null);
+                  setStep(function(s){return s+1;});
+                }}>Continue</button>
               : <button className="bn" onClick={submit} disabled={loading}>{loading ? 'Submitting...' : 'Build My Program'}</button>
             }
           </div>
