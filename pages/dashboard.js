@@ -635,7 +635,7 @@ export default function Dashboard() {
     var key = getLogKey(dayLabel, exerciseName, setIndex);
     var logData = logs[key] || {};
 
-    // Mark as saving
+    // Mark as saving (also clears any previous error state)
     setLogs(function(prev) {
       var next = {};
       for (var k in prev) next[k] = prev[k];
@@ -643,6 +643,7 @@ export default function Dashboard() {
       var updated = {};
       for (var f in existing) updated[f] = existing[f];
       updated.saving = true;
+      updated.saveError = false;
       next[key] = updated;
       return next;
     });
@@ -665,6 +666,30 @@ export default function Dashboard() {
           dayLabel: dayLabel,
         })
       });
+
+      // If session expired, refresh and retry once
+      if (res.status === 401) {
+        await supabase.auth.refreshSession();
+        res = await fetch("/api/workout-log", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            userId: user ? user.id : null,
+            exerciseName: exerciseName,
+            setNumber: setNum,
+            weightLbs: logData.weight || null,
+            reps: logData.reps || null,
+            rir: logData.rir || null,
+            notes: logData.notes || null,
+            programId: program ? program.id : null,
+            blockNumber: program ? program.block_number : 1,
+            weekNumber: currentWeek,
+            dayLabel: dayLabel,
+          })
+        });
+      }
+
+      if (!res.ok) throw new Error('Save failed: ' + res.status);
       var data = await res.json();
 
       // Check for PR before updating state
@@ -684,6 +709,7 @@ export default function Dashboard() {
         return next;
       });
     } catch (err) {
+      console.error('saveLog error:', err);
       setLogs(function(prev) {
         var next = {};
         for (var k in prev) next[k] = prev[k];
@@ -691,6 +717,7 @@ export default function Dashboard() {
         var updated = {};
         for (var f in existing) updated[f] = existing[f];
         updated.saving = false;
+        updated.saveError = true; // flag for UI
         next[key] = updated;
         return next;
       });
@@ -993,12 +1020,13 @@ export default function Dashboard() {
                                         />
                                       </div>
                                       <button
-                                        className={logEntry.saved ? "log-btn saved" : "log-btn"}
+                                        className={logEntry.saved ? "log-btn saved" : logEntry.saveError ? "log-btn" : "log-btn"}
                                         onClick={function() { saveLog(day.day, ex.name, si, si + 1); }}
                                         disabled={logEntry.saving}
-                                        title="Save set and get next week suggestion"
+                                        title={logEntry.saveError ? "Save failed — tap to retry" : "Save set and get next week suggestion"}
+                                        style={logEntry.saveError ? { background: '#E74C3C' } : {}}
                                       >
-                                        {logEntry.saving ? "..." : logEntry.saved ? "✓" : "Save"}
+                                        {logEntry.saving ? "..." : logEntry.saved ? "✓" : logEntry.saveError ? "!" : "Save"}
                                       </button>
                                     </div>
                                     {logEntry.suggestion && (
