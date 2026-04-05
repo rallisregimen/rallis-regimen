@@ -94,6 +94,7 @@ var styles = [
   ".typing-dot:nth-child(2){animation-delay:0.2s;}",
   ".typing-dot:nth-child(3){animation-delay:0.4s;}",
   "@keyframes tp{0%,100%{opacity:0.4;transform:scale(1);}50%{opacity:1;transform:scale(1.3);}}",
+  "@keyframes fadeIn{from{opacity:0;transform:translateY(-8px);}to{opacity:1;transform:translateY(0);}}",
   ".chat-input-row{padding:14px;border-top:1px solid var(--border);display:flex;gap:8px;}",
   ".chat-input{flex:1;border:1.5px solid var(--border);padding:9px 12px;font-family:'Barlow',sans-serif;font-size:13px;font-weight:300;outline:none;resize:none;height:40px;}",
   ".chat-input:focus{border-color:var(--maroon);}",
@@ -298,6 +299,23 @@ export default function Dashboard() {
   var videoModal = videoModalState[0];
   var setVideoModal = videoModalState[1];
 
+  // Strength tracking state
+  var strengthStatsState = useState([]);
+  var strengthStats = strengthStatsState[0];
+  var setStrengthStats = strengthStatsState[1];
+
+  var selectedExerciseState = useState(0);
+  var selectedExercise = selectedExerciseState[0];
+  var setSelectedExercise = selectedExerciseState[1];
+
+  var strengthLoadingState = useState(false);
+  var strengthLoading = strengthLoadingState[0];
+  var setStrengthLoading = strengthLoadingState[1];
+
+  var prCelebrationState = useState(null);
+  var prCelebration = prCelebrationState[0];
+  var setPrCelebration = prCelebrationState[1];
+
   // Exercise video library cache
   var videoLibraryState = useState({});
   var videoLibrary = videoLibraryState[0];
@@ -374,6 +392,39 @@ export default function Dashboard() {
     } catch(e) { console.error('Workout log load error:', e); }
   }
 
+  async function loadStrengthStats(userId) {
+    setStrengthLoading(true);
+    try {
+      var res = await fetch('/api/strength-stats?userId=' + userId);
+      if (!res.ok) return;
+      var data = await res.json();
+      if (data.exercises) {
+        setStrengthStats(data.exercises);
+      }
+    } catch(e) { console.error('Strength stats error:', e); }
+    finally { setStrengthLoading(false); }
+  }
+
+  function checkForPR(exerciseName, weightLbs, reps) {
+    if (!strengthStats || strengthStats.length === 0) return;
+    var ex = strengthStats.find(function(e) { return e.name === exerciseName; });
+    if (!ex) return;
+    var w = parseFloat(weightLbs);
+    var r = parseInt(reps);
+    var newValue;
+    if (ex.hasWeight && w > 0) {
+      newValue = r > 1 ? Math.round(w * (1 + r / 30)) : w;
+    } else if (r > 0) {
+      newValue = r;
+    }
+    if (newValue && ex.allTimePR && newValue > ex.allTimePR.value) {
+      setPrCelebration({ exerciseName: exerciseName, value: newValue, metricLabel: ex.metricLabel });
+      setTimeout(function() { setPrCelebration(null); }, 5000);
+      // Refresh strength stats after PR
+      if (user) loadStrengthStats(user.id);
+    }
+  }
+
   async function saveWeight() {
     if (!user || !weightInput) return;
     setWeightSaving(true);
@@ -438,6 +489,8 @@ export default function Dashboard() {
         fetch('/api/weight-log?userId=' + u.id).then(function(r) { return r.json(); }).then(function(d) { if (d.logs) setWeightLogs(d.logs); }).catch(function(){});
         // Load workout logs from DB (merges with localStorage)
         loadWorkoutLogs(u.id);
+        // Load strength stats
+        loadStrengthStats(u.id);
       } else {
         setTimeout(async function() {
           var result = await supabase.auth.getSession();
@@ -614,6 +667,9 @@ export default function Dashboard() {
       });
       var data = await res.json();
 
+      // Check for PR before updating state
+      checkForPR(exerciseName, logData.weight, logData.reps);
+
       setLogs(function(prev) {
         var next = {};
         for (var k in prev) next[k] = prev[k];
@@ -748,7 +804,10 @@ export default function Dashboard() {
           <nav className="dash-nav">
             {NAV.map(function(n) {
               return (
-                <button key={n.id} className={activeTab === n.id ? "dash-nav-item active" : "dash-nav-item"} onClick={function() { setActiveTab(n.id); }}>
+                <button key={n.id} className={activeTab === n.id ? "dash-nav-item active" : "dash-nav-item"} onClick={function() {
+                  setActiveTab(n.id);
+                  if (n.id === 'progress' && user) loadStrengthStats(user.id);
+                }}>
                   <span style={{ minWidth: 16 }}>{n.icon}</span>
                   {n.label}
                 </button>
@@ -1097,7 +1156,128 @@ export default function Dashboard() {
           {activeTab === "progress" && (
             <div>
               <div className="dash-page-title">Your <em>Progress</em></div>
-              <div className="dash-page-sub">Log your weight weekly to track your progress over time.</div>
+              <div className="dash-page-sub">Lifetime PRs, body weight, and strength trends.</div>
+
+              {/* Strength Tracker */}
+              <div style={{ marginBottom: 28 }}>
+                <div style={{ fontFamily: "Barlow Condensed, sans-serif", fontSize: 11, fontWeight: 700, letterSpacing: "0.2em", textTransform: "uppercase", color: "var(--gold)", marginBottom: 16 }}>Strength Progress</div>
+
+                {strengthLoading ? (
+                  <div className="card"><div className="card-body">Loading strength data...</div></div>
+                ) : strengthStats.length === 0 ? (
+                  <div className="card"><div className="card-body">Start logging your sets in the Training tab to track your strength progress over time.</div></div>
+                ) : (
+                  <div>
+                    {/* Exercise selector tabs */}
+                    <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginBottom: 16 }}>
+                      {strengthStats.map(function(ex, i) {
+                        return (
+                          <button key={ex.name} onClick={function() { setSelectedExercise(i); }} style={{
+                            padding: "7px 12px",
+                            fontFamily: "Barlow Condensed, sans-serif",
+                            fontSize: 11,
+                            fontWeight: 700,
+                            letterSpacing: "0.06em",
+                            textTransform: "uppercase",
+                            border: "1.5px solid " + (selectedExercise === i ? "var(--maroon)" : "var(--border)"),
+                            background: selectedExercise === i ? "var(--maroon)" : "white",
+                            color: selectedExercise === i ? "white" : "var(--mid)",
+                            cursor: "pointer"
+                          }}>
+                            {ex.name}
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    {/* Selected exercise chart */}
+                    {(function() {
+                      var ex = strengthStats[selectedExercise];
+                      if (!ex) return null;
+                      var timeline = ex.timeline;
+                      var values = timeline.map(function(s) { return s.best.value; });
+                      var minV = Math.max(0, Math.min.apply(null, values) - (ex.hasWeight ? 10 : 2));
+                      var maxV = Math.max.apply(null, values) + (ex.hasWeight ? 10 : 2);
+                      var range = maxV - minV || 1;
+                      var chartH = 140;
+                      var chartW = Math.max(400, timeline.length * 60);
+                      var pts = timeline.map(function(s, i) {
+                        var x = (i / Math.max(timeline.length - 1, 1)) * (chartW - 40) + 20;
+                        var y = chartH - ((s.best.value - minV) / range) * (chartH - 20) - 10;
+                        return { x: x, y: y, s: s };
+                      });
+                      var pathD = pts.map(function(p, i) { return (i === 0 ? 'M' : 'L') + p.x + ' ' + p.y; }).join(' ');
+                      var prIdx = pts.reduce(function(best, p, i) {
+                        return p.s.best.value > pts[best].s.best.value ? i : best;
+                      }, 0);
+
+                      return (
+                        <div className="card">
+                          {/* PR stats bar */}
+                          <div style={{ display: "flex", gap: 24, marginBottom: 20, flexWrap: "wrap" }}>
+                            <div>
+                              <div style={{ fontFamily: "Barlow Condensed, sans-serif", fontSize: 10, fontWeight: 700, letterSpacing: "0.15em", textTransform: "uppercase", color: "var(--mid)", marginBottom: 4 }}>All-Time PR</div>
+                              <div style={{ fontFamily: "Playfair Display, serif", fontSize: 28, fontWeight: 900, color: "var(--maroon)" }}>
+                                {ex.allTimePR.value}{ex.hasWeight ? ' lbs' : ' reps'}
+                              </div>
+                              {ex.hasWeight && ex.allTimePR.weight && (
+                                <div style={{ fontFamily: "Barlow Condensed, sans-serif", fontSize: 11, color: "var(--mid)", marginTop: 2 }}>
+                                  {ex.allTimePR.weight} lbs × {ex.allTimePR.reps || 1} reps
+                                </div>
+                              )}
+                            </div>
+                            {ex.recentBest && (
+                              <div>
+                                <div style={{ fontFamily: "Barlow Condensed, sans-serif", fontSize: 10, fontWeight: 700, letterSpacing: "0.15em", textTransform: "uppercase", color: "var(--mid)", marginBottom: 4 }}>Last 30 Days</div>
+                                <div style={{ fontFamily: "Playfair Display, serif", fontSize: 28, fontWeight: 900, color: "var(--charcoal)" }}>
+                                  {ex.recentBest.value}{ex.hasWeight ? ' lbs' : ' reps'}
+                                </div>
+                              </div>
+                            )}
+                            <div>
+                              <div style={{ fontFamily: "Barlow Condensed, sans-serif", fontSize: 10, fontWeight: 700, letterSpacing: "0.15em", textTransform: "uppercase", color: "var(--mid)", marginBottom: 4 }}>Sessions Logged</div>
+                              <div style={{ fontFamily: "Playfair Display, serif", fontSize: 28, fontWeight: 900, color: "var(--charcoal)" }}>{ex.sessionCount}</div>
+                            </div>
+                            <div>
+                              <div style={{ fontFamily: "Barlow Condensed, sans-serif", fontSize: 10, fontWeight: 700, letterSpacing: "0.15em", textTransform: "uppercase", color: "var(--mid)", marginBottom: 4 }}>Tracking</div>
+                              <div style={{ fontFamily: "Barlow Condensed, sans-serif", fontSize: 14, fontWeight: 700, color: "var(--charcoal)", marginTop: 6 }}>{ex.metricLabel}</div>
+                            </div>
+                          </div>
+
+                          {/* Chart */}
+                          {timeline.length > 1 && (
+                            <div style={{ overflowX: "auto", borderTop: "1px solid var(--border)", paddingTop: 16 }}>
+                              <svg width={chartW} height={chartH + 40} style={{ display: "block" }}>
+                                <path d={pathD} fill="none" stroke="var(--maroon)" strokeWidth="2" />
+                                {pts.map(function(p, i) {
+                                  var isPR = i === prIdx;
+                                  return (
+                                    <g key={i}>
+                                      <circle cx={p.x} cy={p.y} r={isPR ? 6 : 4} fill={isPR ? "var(--gold)" : "var(--maroon)"} />
+                                      <text x={p.x} y={p.y - 10} textAnchor="middle" fontSize="11" fill={isPR ? "var(--gold)" : "var(--charcoal)"} fontFamily="Barlow, sans-serif" fontWeight={isPR ? "700" : "400"}>
+                                        {p.s.best.value}{ex.hasWeight ? '' : 'r'}
+                                      </text>
+                                      <text x={p.x} y={chartH + 20} textAnchor="middle" fontSize="9" fill="var(--mid)" fontFamily="Barlow, sans-serif" transform={"rotate(-45," + p.x + "," + (chartH + 20) + ")"}>
+                                        {p.s.date ? p.s.date.slice(5) : ""}
+                                      </text>
+                                    </g>
+                                  );
+                                })}
+                              </svg>
+                              <div style={{ fontFamily: "Barlow Condensed, sans-serif", fontSize: 10, color: "var(--mid)", letterSpacing: "0.06em", marginTop: 4 }}>
+                                Gold dot = all-time PR · {ex.metricLabel} shown
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()}
+                  </div>
+                )}
+              </div>
+
+              {/* Body Weight section */}
+              <div style={{ fontFamily: "Barlow Condensed, sans-serif", fontSize: 11, fontWeight: 700, letterSpacing: "0.2em", textTransform: "uppercase", color: "var(--gold)", marginBottom: 16 }}>Body Weight</div>
 
               {/* Log weight */}
               <div className="card" style={{ marginBottom: 16 }}>
@@ -1318,6 +1498,18 @@ export default function Dashboard() {
 
         </div>
       </div>
+
+      {prCelebration && (
+        <div style={{ position: 'fixed', top: 24, left: '50%', transform: 'translateX(-50%)', zIndex: 999, background: 'var(--gold)', padding: '16px 28px', display: 'flex', alignItems: 'center', gap: 20, boxShadow: '0 4px 24px rgba(0,0,0,0.25)', animation: 'fadeIn 0.3s ease', minWidth: 280, maxWidth: 480 }}>
+          <div style={{ fontSize: 28 }}>🏆</div>
+          <div>
+            <div style={{ fontFamily: 'Barlow Condensed, sans-serif', fontSize: 10, fontWeight: 700, letterSpacing: '0.2em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.8)', marginBottom: 2 }}>New Personal Record</div>
+            <div style={{ fontFamily: 'Playfair Display, serif', fontSize: 18, fontWeight: 900, color: 'white', marginBottom: 2 }}>{prCelebration.exerciseName}</div>
+            <div style={{ fontFamily: 'Barlow Condensed, sans-serif', fontSize: 13, fontWeight: 600, color: 'rgba(255,255,255,0.9)' }}>{prCelebration.metricLabel}: {prCelebration.value}{prCelebration.metricLabel === 'Est. 1RM' ? ' lbs' : ' reps'}</div>
+          </div>
+          <button onClick={function() { setPrCelebration(null); }} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.7)', cursor: 'pointer', fontSize: 18, marginLeft: 'auto', padding: '0 4px' }}>&#x2715;</button>
+        </div>
+      )}
 
       {videoModal && (
         <div onClick={function() { setVideoModal(null); }} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
