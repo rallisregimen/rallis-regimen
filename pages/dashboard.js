@@ -347,6 +347,33 @@ export default function Dashboard() {
     } catch(e) { console.error('Weight load error:', e); }
   }
 
+  async function loadWorkoutLogs(userId) {
+    try {
+      var res = await fetch('/api/workout-log?userId=' + userId);
+      if (!res.ok) return;
+      var data = await res.json();
+      if (data.logs && data.logs.length > 0) {
+        // Convert DB logs to the local key format and merge with localStorage
+        var dbLogs = {};
+        data.logs.forEach(function(log) {
+          var key = 'w' + log.week_number + '--' + log.day_label + '--' + log.exercise_name + '--' + (log.set_number - 1);
+          dbLogs[key] = {
+            weight: log.weight_lbs ? String(log.weight_lbs) : '',
+            reps: log.reps ? String(log.reps) : '',
+            rir: log.rir ? String(log.rir) : '',
+            notes: log.notes || '',
+            saved: true
+          };
+        });
+        setLogs(function(prev) {
+          var merged = Object.assign({}, dbLogs, prev);
+          try { localStorage.setItem('workout-logs', JSON.stringify(merged)); } catch(e) {}
+          return merged;
+        });
+      }
+    } catch(e) { console.error('Workout log load error:', e); }
+  }
+
   async function saveWeight() {
     if (!user || !weightInput) return;
     setWeightSaving(true);
@@ -409,6 +436,8 @@ export default function Dashboard() {
         });
         // Load weight logs
         fetch('/api/weight-log?userId=' + u.id).then(function(r) { return r.json(); }).then(function(d) { if (d.logs) setWeightLogs(d.logs); }).catch(function(){});
+        // Load workout logs from DB (merges with localStorage)
+        loadWorkoutLogs(u.id);
       } else {
         setTimeout(async function() {
           var result = await supabase.auth.getSession();
@@ -444,19 +473,25 @@ export default function Dashboard() {
 
   useEffect(function() {
     if (loading || !user) return;
+    // Only poll if program is actively generating
+    if (program && program.status !== 'generating') return;
     var userId = user.id;
     var interval = setInterval(function() {
-      supabase.from("generated_programs").select("*").eq("user_id", userId).eq("status", "ready").order("generated_at", { ascending: false }).limit(1).single().then(function(result) {
+      supabase.from("generated_programs").select("*").eq("user_id", userId).order("generated_at", { ascending: false }).limit(1).single().then(function(result) {
         if (result.data) {
           setProgram(function(current) {
-            if (!current || result.data.id !== current.id) return result.data;
+            if (!current || result.data.id !== current.id || result.data.status !== (current && current.status)) return result.data;
             return current;
           });
+          // Stop polling once ready or failed
+          if (result.data.status === 'ready' || result.data.status === 'failed') {
+            clearInterval(interval);
+          }
         }
       });
     }, 5000);
     return function() { clearInterval(interval); };
-  }, [loading, user]);
+  }, [loading, user, program && program.status]);
 
   // Load video library from Supabase once
   useEffect(function() {
@@ -734,9 +769,16 @@ export default function Dashboard() {
               <div className="card-grid">
                 <div className="card">
                   <div className="card-label">Training</div>
-                  <div className="card-title">{(program && program.program_name) ? program.program_name.replace(/_/g, ' ') : "Building Your Program..."}</div>
+                  <div className="card-title">
+                    {program && program.status === 'failed' ? "Generation Failed"
+                      : (program && program.program_name) ? program.program_name.replace(/_/g, ' ')
+                      : program && program.status === 'generating' ? "Building Your Program..."
+                      : "No Program Yet"}
+                  </div>
                   <div className="card-body">
-                    {program && program.program_name
+                    {program && program.status === 'failed'
+                      ? "Something went wrong generating your program. Please try regenerating below."
+                      : program && program.program_name
                       ? "Log your sets and hit Save after each one. You'll get a next-week progression suggestion based on your performance."
                       : "Your program is generating — this takes about 30 seconds. This page will refresh automatically."
                     }
@@ -759,7 +801,11 @@ export default function Dashboard() {
                   <div className="card-label">Actions</div>
                   <div className="card-title">Program Tools</div>
                   <div className="card-body">Regenerate your program if something looks wrong, or update your profile for next month.</div>
-                  <button className="card-btn" onClick={regenerateProgram} style={{ marginBottom: 8 }}>Regenerate Program</button>
+                  <button className="card-btn" onClick={function() {
+                    if (window.confirm('This will replace your current program. Are you sure?')) {
+                      regenerateProgram();
+                    }
+                  }} style={{ marginBottom: 8 }}>Regenerate Program</button>
                   <button className="card-btn ghost" onClick={function() { setActiveTab("profile"); }}>Update Profile</button>
                 </div>
               </div>
