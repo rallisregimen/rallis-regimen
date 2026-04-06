@@ -248,6 +248,10 @@ export default function Dashboard() {
   var program = programState[0];
   var setProgram = programState[1];
 
+  var intakeState = useState(null);
+  var intake = intakeState[0];
+  var setIntake = intakeState[1];
+
   var loadingState = useState(true);
   var loading = loadingState[0];
   var setLoading = loadingState[1];
@@ -307,6 +311,11 @@ export default function Dashboard() {
   var selectedExerciseState = useState(0);
   var selectedExercise = selectedExerciseState[0];
   var setSelectedExercise = selectedExerciseState[1];
+
+  // Track which day warm-ups are expanded { "Day 1": true, ... }
+  var warmupOpenState = useState({});
+  var warmupOpen = warmupOpenState[0];
+  var setWarmupOpen = warmupOpenState[1];
 
   var strengthLoadingState = useState(false);
   var strengthLoading = strengthLoadingState[0];
@@ -485,6 +494,9 @@ export default function Dashboard() {
           setProgram(programResult.data || null);
           setLoading(false);
         });
+        supabase.from("intake_submissions").select("equipment, equipment_detail").eq("user_id", u.id).single().then(function(intakeResult) {
+          if (intakeResult.data) setIntake(intakeResult.data);
+        });
         // Load weight logs
         fetch('/api/weight-log?userId=' + u.id).then(function(r) { return r.json(); }).then(function(d) { if (d.logs) setWeightLogs(d.logs); }).catch(function(){});
         // Load workout logs from DB (merges with localStorage)
@@ -506,6 +518,8 @@ export default function Dashboard() {
             setProfile(p);
             var programResult = await supabase.from("generated_programs").select("*").eq("user_id", u.id).order("generated_at", { ascending: false }).limit(1).single();
             setProgram(programResult.data || null);
+            var intakeResult = await supabase.from("intake_submissions").select("equipment, equipment_detail").eq("user_id", u.id).single();
+            if (intakeResult.data) setIntake(intakeResult.data);
             setLoading(false);
           } else {
             router.push('/login');
@@ -611,6 +625,51 @@ export default function Dashboard() {
   function openVideo(exerciseName) {
     var id = getVideoId(exerciseName);
     if (id) setVideoModal({ exerciseName: exerciseName, youtubeId: id });
+  }
+
+  function getWarmup(dayType, equipment) {
+    // General cardio step adapts to available equipment
+    var cardioStep = 'Light bike or row — 5 min';
+    if (equipment === 'bodyweight_only') cardioStep = 'Jumping jacks or march in place — 5 min';
+    else if (equipment === 'home_bands') cardioStep = 'March in place or jumping jacks — 5 min';
+
+    var type = (dayType || '').toLowerCase();
+    var isUpper = type.indexOf('upper') !== -1 || type.indexOf('push') !== -1 || type.indexOf('pull') !== -1;
+    var isLower = type.indexOf('lower') !== -1 || type.indexOf('leg') !== -1;
+    var isCardio = type.indexOf('cardio') !== -1 || type.indexOf('aerobic') !== -1 || type.indexOf('anaerobic') !== -1;
+    var isFull = type.indexOf('full') !== -1 || (!isUpper && !isLower && !isCardio);
+
+    if (isCardio) {
+      return [
+        { phase: 'General Warm-Up', items: ['Light movement — 3-5 min at easy pace', 'Gradually increase intensity'] },
+        { phase: 'Dynamic Movement', items: ['Leg swings — 10 each direction', 'Hip circles — 10 each side', 'Arm circles — 10 forward, 10 back'] }
+      ];
+    }
+
+    var rolling = isUpper
+      ? ['Thoracic spine — 60 sec', 'Lats and pecs — 60 sec each', 'Forearms — 30 sec each']
+      : isLower
+      ? ['Quads and IT band — 60 sec each', 'Glutes and piriformis — 60 sec each', 'Calves — 30 sec each']
+      : ['Thoracic spine — 60 sec', 'Quads and glutes — 60 sec each', 'Lats — 60 sec each'];
+
+    var dynamic = isUpper
+      ? ['Arm circles — 10 forward, 10 back', 'Shoulder CARs — 5 each arm', 'Thoracic rotation — 10 each side', 'Band pull-aparts — 15 reps']
+      : isLower
+      ? ['Leg swings forward/back — 10 each leg', 'Leg swings side to side — 10 each leg', "World's greatest stretch — 5 each side", 'Hip circles — 10 each direction']
+      : ['Arm circles — 10 each direction', 'Leg swings — 10 each direction', 'Thoracic rotation — 10 each side', 'Hip circles — 10 each direction'];
+
+    var activation = isUpper
+      ? ['Scapular push-ups — 10 reps', 'Band pull-aparts — 15 reps', 'Light lateral raises — 15 reps', 'Face pulls or band rows — 15 reps']
+      : isLower
+      ? ['Glute bridge — 15 reps', 'Terminal knee extensions (TKEs) — 15 each leg', 'Banded clamshells — 15 each side', 'Banded lateral walks — 10 steps each direction']
+      : ['Scapular push-ups — 10 reps', 'Glute bridge — 15 reps', 'Band pull-aparts — 15 reps', 'Banded clamshells — 15 each side'];
+
+    return [
+      { phase: 'General Movement', items: [cardioStep, 'Focus on breathing, let your heart rate rise gradually'] },
+      { phase: 'Self-Myofascial Release', items: rolling },
+      { phase: 'Dynamic Movement', items: dynamic },
+      { phase: 'Activation', items: activation }
+    ];
   }
 
   function getLogKey(dayLabel, exerciseName, setIndex) {
@@ -961,6 +1020,67 @@ export default function Dashboard() {
 
                     {isOpen && (
                       <div className="exercises-table">
+
+                        {/* WARM-UP SECTION */}
+                        {(function() {
+                          var warmup = getWarmup(day.type || day.focus, intake && intake.equipment);
+                          var isWarmupOpen = warmupOpen[day.day] || false;
+                          return (
+                            <div style={{ borderBottom: '1px solid var(--border)' }}>
+                              <div
+                                onClick={function() {
+                                  setWarmupOpen(function(prev) {
+                                    var next = Object.assign({}, prev);
+                                    next[day.day] = !prev[day.day];
+                                    return next;
+                                  });
+                                }}
+                                style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 20px', cursor: 'pointer', background: 'rgba(184,148,58,0.06)' }}
+                              >
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                                  <div style={{ fontFamily: 'Barlow Condensed, sans-serif', fontSize: 11, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--gold)' }}>Warm-Up Protocol</div>
+                                  <div style={{ fontFamily: 'Barlow Condensed, sans-serif', fontSize: 10, fontWeight: 500, color: 'var(--mid)', letterSpacing: '0.06em' }}>Complete before training</div>
+                                </div>
+                                <div style={{ fontFamily: 'Barlow Condensed, sans-serif', fontSize: 12, color: 'var(--gold)', fontWeight: 700 }}>{isWarmupOpen ? 'Hide' : 'Show'}</div>
+                              </div>
+                              {isWarmupOpen && (
+                                <div style={{ padding: '0 20px 16px' }}>
+                                  {warmup.map(function(section, si) {
+                                    return (
+                                      <div key={si} style={{ marginTop: 14 }}>
+                                        <div style={{ fontFamily: 'Barlow Condensed, sans-serif', fontSize: 10, fontWeight: 700, letterSpacing: '0.15em', textTransform: 'uppercase', color: 'var(--maroon)', marginBottom: 6 }}>{section.phase}</div>
+                                        {section.items.map(function(item, ii) {
+                                          var checkKey = 'warmup-' + day.day + '-' + si + '-' + ii;
+                                          var checked = warmupOpen[checkKey] || false;
+                                          return (
+                                            <div
+                                              key={ii}
+                                              onClick={function(e) {
+                                                e.stopPropagation();
+                                                setWarmupOpen(function(prev) {
+                                                  var next = Object.assign({}, prev);
+                                                  next[checkKey] = !prev[checkKey];
+                                                  return next;
+                                                });
+                                              }}
+                                              style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '5px 0', cursor: 'pointer', borderBottom: ii < section.items.length - 1 ? '1px solid rgba(0,0,0,0.04)' : 'none' }}
+                                            >
+                                              <div style={{ width: 16, height: 16, minWidth: 16, border: checked ? 'none' : '1.5px solid var(--border)', background: checked ? 'var(--gold)' : 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all .15s' }}>
+                                                {checked && <svg width="8" height="6" viewBox="0 0 10 8" fill="none"><path d="M1 4L3.5 6.5L9 1" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>}
+                                              </div>
+                                              <div style={{ fontSize: 13, fontWeight: 300, color: checked ? 'var(--mid)' : 'var(--charcoal)', textDecoration: checked ? 'line-through' : 'none', opacity: checked ? 0.6 : 1, lineHeight: 1.5 }}>{item}</div>
+                                            </div>
+                                          );
+                                        })}
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })()}
+
                         <div className="exercise-header-row">
                           <div className="exercise-col-label">Exercise</div>
                           <div className="exercise-col-label" style={{ textAlign: "center" }}>Weight</div>
