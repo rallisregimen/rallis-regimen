@@ -1637,6 +1637,28 @@ export default function Dashboard() {
                 <button className="card-btn" onClick={function() { router.push('/profile'); }}>Edit Profile</button>
               </div>
               <div className="card">
+                <div className="card-label">Subscription</div>
+                <div className="card-body" style={{ marginBottom: 16 }}>Manage your billing, update your payment method, or cancel your subscription.</div>
+                <button className="card-btn" onClick={async function() {
+                  if (!user) return;
+                  try {
+                    var res = await fetch('/api/billing-portal', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ userId: user.id })
+                    });
+                    var data = await res.json();
+                    if (data.url) {
+                      window.location.href = data.url;
+                    } else {
+                      alert(data.error || 'Could not open billing portal. Contact support.');
+                    }
+                  } catch(e) {
+                    alert('Something went wrong. Please try again or contact support.');
+                  }
+                }}>Manage Subscription</button>
+              </div>
+              <div className="card">
                 <div className="card-label">Account</div>
                 <div className="card-body" style={{ marginBottom: 16 }}>Questions or issues? Reach us at <a href="mailto:contact@rallisregimen.com" style={{ color: "var(--maroon)" }}>contact@rallisregimen.com</a></div>
                 <button className="card-btn ghost" onClick={signOut}>Sign Out</button>
