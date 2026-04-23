@@ -15,6 +15,8 @@ var styles = [
   ".nav-free { font-family:'Barlow Condensed',sans-serif; font-size:12px; font-weight:600; letter-spacing:0.1em; text-transform:uppercase; color:var(--mid); }",
   ".nav-cta { background:var(--maroon); color:white; font-family:'Barlow Condensed',sans-serif; font-weight:600; font-size:13px; letter-spacing:0.1em; text-transform:uppercase; border:none; cursor:pointer; padding:10px 24px; transition:background 0.2s; }",
   ".nav-cta:hover { background:var(--maroon-dark); }",
+  ".nav-login { background:transparent; color:var(--charcoal); font-family:'Barlow Condensed',sans-serif; font-weight:600; font-size:13px; letter-spacing:0.1em; text-transform:uppercase; border:none; cursor:pointer; padding:10px 16px; transition:color 0.2s; }",
+  ".nav-login:hover { color:var(--maroon); }",
   ".hero { min-height:100vh; display:grid; grid-template-columns:1fr 1fr; padding-top:80px; }",
   ".hero-left { display:flex; flex-direction:column; justify-content:center; padding:80px 64px 80px 48px; position:relative; }",
   ".hero-left::after { content:''; position:absolute; top:0; right:0; bottom:0; width:1px; background:var(--maroon); opacity:0.2; }",
@@ -150,6 +152,7 @@ export default function LandingPage() {
         <div className="nav-logo" onClick={function() { router.push("/"); }}>Rallis <span>Regimen</span></div>
         <div className="nav-right">
           <span className="nav-free">30 Days Free</span>
+          <button className="nav-login" onClick={function() { router.push('/login'); }}>Log In</button>
           <button className="nav-cta" onClick={goToJoin}>Start Free Trial</button>
         </div>
       </nav>
