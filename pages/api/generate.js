@@ -9,7 +9,7 @@ function getSupabase() {
 
 export const config = { maxDuration: 60 };
 
-function buildTrainingPrompt(intake, profile, days, splitType, splitDesc, hasCardio) {
+function buildTrainingPrompt(intake, profile, days, splitType, splitDesc, hasCardio, previousPrimaries) {
   var name = profile.full_name || profile.first_name || 'Member';
   var equipment = intake.equipment || 'full_gym';
   var equipmentDetail = (intake.equipment_detail && intake.equipment_detail.length > 0)
@@ -141,7 +141,12 @@ function buildTrainingPrompt(intake, profile, days, splitType, splitDesc, hasCar
     + '\n16. CROSS-DAY EXERCISE UNIQUENESS: No exercise name may appear on more than one day within the same block. If lateral raises appear on Push A, they cannot appear on Push B — use a different shoulder isolation (cable lateral raise, front raise, or upright row). If barbell bench appears on Push A, it cannot appear on Push B — use a different horizontal press (incline DB, cable press, etc.). This applies to all exercises across all days in the block.'
     + '\n17. CROSS-DAY MOVEMENT PATTERN VARIETY: Even when exercise names differ, avoid programming the same movement pattern on two push days or two pull days. For example: DB lateral raise on Push A and cable lateral raise on Push B is a violation — both are lateral raise patterns. Instead Push B should use a different shoulder movement entirely (front raise, upright row, or face pull). Vary the movement pattern, not just the implement.';
 
-  return 'Generate ONLY the training section as valid JSON. No text outside JSON.\n\nMEMBER: ' + name + ', ' + intake.age + 'yo ' + intake.sex + ', ' + (intake.experience_level || 'intermediate') + '. Equipment: ' + equipment + '.' + equipmentDetail + equipmentExclusions + ' Primary goal: ' + goal + '. Secondary goal: ' + (goalSecondary || 'none') + '. Session length: ' + (intake.session_length_mins || 60) + ' min.' + injuryNote + successNote + '\n\nSPLIT INSTRUCTIONS (follow exactly):\n' + splitDesc + '\n\n' + repScheme + speedPowerNote + '\n\n' + structureGuide + '\n\n' + blockProgression + cardioNote + '\n\nRULES:\n1. Each block\'s "days" array must have EXACTLY ' + days + ' objects — count before outputting.\n2. Day names must be descriptive: "Upper A", "Lower B", "Cardio", "Full Body". Never "string" or "-".\n3. ' + equipment + ': home_bands/bodyweight_only = no machines; dumbbells_only = no barbells or machines.\n4. No repeated exercises within the same session.\n5. Bands = 12-30 reps minimum.\n6. Max 3 compound exercises per day (4 for full body/bodyweight days).\n7. SESSION LENGTH IS ' + sessionMins + ' MINUTES. Each day must have exactly ' + exerciseCap + ' exercises total — no more. This is a hard limit to fit within the session time. Do not exceed it.\n8. Rest times: conditioning goal = 30-60 sec; hypertrophy = 60-90 sec isolation / 2-3 min compounds; strength = 3-5 min main lifts.' + plyoNote + namingRule + '\n\nOutput ONLY this JSON structure (fill in all fields with real values, never use placeholder text):\n{"split":"' + splitType + '","weekly_schedule":{"day_1":"","day_2":"","day_3":"","day_4":"","day_5":"","day_6":"","day_7":""},"blocks":[{"block":1,"weeks":"1-4","days":[/* EXACTLY ' + days + ' day objects */]},{"block":2,"weeks":"5-8","days":[/* EXACTLY ' + days + ' day objects */]},{"block":3,"weeks":"9-12","days":[/* EXACTLY ' + days + ' day objects */]}]}\n\nDay object format: {"day":"Upper A","focus":"Horizontal push and pull","exercises":[{"name":"Barbell Bench Press","sets":4,"reps":"8-10","rir_week1":"3-4","rir_week2":"2-3","rir_week3":"1-2","rir_week4":"7-8 deload","rest":"2 min","note":"Control the descent, press explosively"}]}';
+  var previousPrimariesNote = '';
+  if (previousPrimaries && previousPrimaries.length > 0) {
+    previousPrimariesNote = '\n\nEXERCISE VARIETY — NEW PROGRAM: This member just completed a full 12-week program. Do NOT use these exercises as Block 1 primary compound movements — rotate to fresh variations to provide new stimulus: ' + previousPrimaries.join(', ') + '. For example: if Back Squat is listed, open Block 1 lower days with Front Squat, Bulgarian Split Squat, or Goblet Squat instead. If Barbell Bench Press is listed, open with Incline DB Press or Cable Press. Supplemental and accessory work may overlap freely — only the first exercise on each day needs to rotate.';
+  }
+
+  return 'Generate ONLY the training section as valid JSON. No text outside JSON.\n\nMEMBER: ' + name + ', ' + intake.age + 'yo ' + intake.sex + ', ' + (intake.experience_level || 'intermediate') + '. Equipment: ' + equipment + '.' + equipmentDetail + equipmentExclusions + ' Primary goal: ' + goal + '. Secondary goal: ' + (goalSecondary || 'none') + '. Session length: ' + (intake.session_length_mins || 60) + ' min.' + injuryNote + successNote + previousPrimariesNote + '\n\nSPLIT INSTRUCTIONS (follow exactly):\n' + splitDesc + '\n\n' + repScheme + speedPowerNote + '\n\n' + structureGuide + '\n\n' + blockProgression + cardioNote + '\n\nRULES:\n1. Each block\'s "days" array must have EXACTLY ' + days + ' objects — count before outputting.\n2. Day names must be descriptive: "Upper A", "Lower B", "Cardio", "Full Body". Never "string" or "-".\n3. ' + equipment + ': home_bands/bodyweight_only = no machines; dumbbells_only = no barbells or machines.\n4. No repeated exercises within the same session.\n5. Bands = 12-30 reps minimum.\n6. Max 3 compound exercises per day (4 for full body/bodyweight days).\n7. SESSION LENGTH IS ' + sessionMins + ' MINUTES. Each day must have exactly ' + exerciseCap + ' exercises total — no more. This is a hard limit to fit within the session time. Do not exceed it.\n8. Rest times: conditioning goal = 30-60 sec; hypertrophy = 60-90 sec isolation / 2-3 min compounds; strength = 3-5 min main lifts.' + plyoNote + namingRule + '\n\nOutput ONLY this JSON structure (fill in all fields with real values, never use placeholder text):\n{"split":"' + splitType + '","weekly_schedule":{"day_1":"","day_2":"","day_3":"","day_4":"","day_5":"","day_6":"","day_7":""},"blocks":[{"block":1,"weeks":"1-4","days":[/* EXACTLY ' + days + ' day objects */]},{"block":2,"weeks":"5-8","days":[/* EXACTLY ' + days + ' day objects */]},{"block":3,"weeks":"9-12","days":[/* EXACTLY ' + days + ' day objects */]}]}\n\nDay object format: {"day":"Upper A","focus":"Horizontal push and pull","exercises":[{"name":"Barbell Bench Press","sets":4,"reps":"8-10","rir_week1":"3-4","rir_week2":"2-3","rir_week3":"1-2","rir_week4":"7-8 deload","rest":"2 min","note":"Control the descent, press explosively"}]}';
 }
 
 // INGREDIENT LOOKUP TABLE — [protein_g, carbs_g, fat_g] per unit
@@ -506,7 +511,12 @@ function cleanAndParse(text) {
   }
 }
 
-async function callClaude(prompt) {
+function sleep(ms) {
+  return new Promise(function(resolve) { setTimeout(resolve, ms); });
+}
+
+async function callClaude(prompt, attempt) {
+  attempt = attempt || 1;
   var response = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: {
@@ -516,16 +526,64 @@ async function callClaude(prompt) {
     },
     body: JSON.stringify({
       model: 'claude-haiku-4-5-20251001',
-      max_tokens: 6000,
+      max_tokens: 5500,
       messages: [{ role: 'user', content: prompt }]
     })
   });
+
+  // Handle rate limit with one automatic retry after 65 seconds
+  if (response.status === 429 && attempt < 3) {
+    console.log('Rate limit hit, waiting 65 seconds before retry (attempt ' + attempt + ')...');
+    await sleep(65000);
+    return callClaude(prompt, attempt + 1);
+  }
+
   if (!response.ok) {
     var err = await response.text();
     throw new Error('API failed: ' + err);
   }
   var data = await response.json();
   return data.content && data.content[0] ? data.content[0].text : '';
+}
+
+async function getPreviousPrimaryExercises(supabase, userId) {
+  try {
+    // Fetch last 2 completed programs (excludes current generating one)
+    var result = await supabase
+      .from('generated_programs')
+      .select('training_program, program_type, generated_at')
+      .eq('user_id', userId)
+      .eq('status', 'ready')
+      .order('generated_at', { ascending: false })
+      .limit(2);
+
+    if (result.error || !result.data || result.data.length === 0) return null;
+
+    var allPrimaries = [];
+
+    result.data.forEach(function(prog) {
+      try {
+        var tp = prog.training_program;
+        if (!tp || !tp.blocks) return;
+        tp.blocks.forEach(function(block) {
+          if (!block.days) return;
+          block.days.forEach(function(day) {
+            if (!day.exercises || day.exercises.length === 0) return;
+            // First exercise per day = primary compound
+            var primary = day.exercises[0];
+            if (primary && primary.name && allPrimaries.indexOf(primary.name) === -1) {
+              allPrimaries.push(primary.name);
+            }
+          });
+        });
+      } catch(e) {}
+    });
+
+    return allPrimaries.length > 0 ? allPrimaries : null;
+  } catch(e) {
+    console.error('Error fetching previous exercises:', e);
+    return null;
+  }
 }
 
 export default async function handler(req, res) {
@@ -680,13 +738,22 @@ export default async function handler(req, res) {
     }).select().single();
     var programId = insertResult.data ? insertResult.data.id : null;
 
-    var trainingPrompt = buildTrainingPrompt(intake, profile, days, splitType, splitDesc, isAnyConditioning);
+    // Fetch previous primary exercises for variety — only when explicitly requested (new program after block 3)
+    var isNewProgram = req.body.isNewProgram || false;
+    var previousPrimaries = null;
+    if (isNewProgram) {
+      previousPrimaries = await getPreviousPrimaryExercises(supabase, userId);
+      console.log('Previous primaries found:', previousPrimaries ? previousPrimaries.length : 0);
+    }
+
+    var trainingPrompt = buildTrainingPrompt(intake, profile, days, splitType, splitDesc, isAnyConditioning, previousPrimaries);
     var nutritionPrompt = buildNutritionSleepPrompt(intake, profile, days, proteinTarget, calorieTarget, carbsTraining, carbsRest, fatTraining, fatRest);
 
-    var results = [
-      await callClaude(trainingPrompt),
-      await callClaude(nutritionPrompt)
-    ];
+    var trainingResult = await callClaude(trainingPrompt);
+    // Brief pause between calls to reduce rate limit pressure
+    await sleep(3000);
+    var nutritionResult = await callClaude(nutritionPrompt);
+    var results = [trainingResult, nutritionResult];
 
     var trainingData = cleanAndParse(results[0]);
     var nutritionRaw = cleanAndParse(results[1]);
