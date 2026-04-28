@@ -387,7 +387,7 @@ export default function Dashboard() {
         // Convert DB logs to the local key format and merge with localStorage
         var dbLogs = {};
         data.logs.forEach(function(log) {
-          var key = 'w' + log.week_number + '--' + log.day_label + '--' + log.exercise_name + '--' + (log.set_number - 1);
+          var key = 'b' + (log.block_number || 1) + '--w' + log.week_number + '--' + log.day_label + '--' + log.exercise_name + '--' + (log.set_number - 1);
           dbLogs[key] = {
             weight: log.weight_lbs ? String(log.weight_lbs) : '',
             reps: log.reps ? String(log.reps) : '',
@@ -461,7 +461,7 @@ export default function Dashboard() {
       var res = await fetch("/api/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId: user.id, targetBlock: 1 })
+        body: JSON.stringify({ userId: user.id })
       });
       if (res.ok) {
         setRegenMessage("Program generated! Refreshing...");
@@ -726,7 +726,7 @@ export default function Dashboard() {
   }
 
   function getLogKey(dayLabel, exerciseName, setIndex) {
-    return "w" + currentWeek + "--" + dayLabel + "--" + exerciseName + "--" + setIndex;
+    return "b" + currentBlockNum + "--w" + currentWeek + "--" + dayLabel + "--" + exerciseName + "--" + setIndex;
   }
 
   function updateLog(dayLabel, exerciseName, setIndex, field, value) {
@@ -928,7 +928,8 @@ export default function Dashboard() {
       ? user.user_metadata.full_name.split(' ')[0]
       : "Athlete";
   var trainingData = (program && program.training_program) ? program.training_program : DEMO_PROGRAM.training_program;
-  var block = trainingData.blocks ? trainingData.blocks[0] : null;
+  var currentBlockNum = (program && program.block_number) ? program.block_number : 1;
+  var block = trainingData.blocks ? (trainingData.blocks[currentBlockNum - 1] || trainingData.blocks[0]) : null;
 
   return (
     <div>
@@ -1021,6 +1022,7 @@ export default function Dashboard() {
               <div className="dash-page-title"><em>Training</em> Program</div>
               <div className="dash-page-sub">
                 {(program && program.program_name) ? program.program_name.replace(/_/g, ' ') : "Your Program"}.
+                {" "}<strong style={{ color: "var(--maroon)" }}>Block {currentBlockNum} of 3 — Weeks {block ? block.weeks : "1-4"}.</strong>
                 {" "}Log your sets after each session — hit Save to record your performance and get a next-week progression suggestion.
               </div>
 
