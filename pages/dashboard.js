@@ -325,6 +325,10 @@ export default function Dashboard() {
   var prCelebration = prCelebrationState[0];
   var setPrCelebration = prCelebrationState[1];
 
+  var showNewProgramModalState = useState(false);
+  var showNewProgramModal = showNewProgramModalState[0];
+  var setShowNewProgramModal = showNewProgramModalState[1];
+
   // Exercise video library cache
   var videoLibraryState = useState({});
   var videoLibrary = videoLibraryState[0];
@@ -457,7 +461,7 @@ export default function Dashboard() {
       var res = await fetch("/api/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId: user.id })
+        body: JSON.stringify({ userId: user.id, targetBlock: 1 })
       });
       if (res.ok) {
         setRegenMessage("Program generated! Refreshing...");
@@ -467,6 +471,55 @@ export default function Dashboard() {
         setRegenMessage("Generation failed: " + (err.error || "unknown error") + ". Please try again.");
       }
     } catch (e) {
+      setRegenMessage("Something went wrong. Please try again.");
+    }
+  }
+
+  async function advanceBlock() {
+    if (!user || !program) { setRegenMessage("No active program found."); return; }
+    var currentBlock = program.block_number || 1;
+    var nextBlock = currentBlock + 1;
+
+    if (nextBlock > 3) {
+      // After block 3 — confirm profile before new program
+      setShowNewProgramModal(true);
+      return;
+    }
+
+    setRegenMessage("Advancing to Block " + nextBlock + "...");
+    try {
+      var res = await supabase
+        .from('generated_programs')
+        .update({ block_number: nextBlock })
+        .eq('id', program.id);
+
+      if (res.error) throw res.error;
+
+      setRegenMessage("Block " + nextBlock + " unlocked! Refreshing...");
+      setTimeout(function() { window.location.reload(); }, 1500);
+    } catch(e) {
+      setRegenMessage("Something went wrong. Please try again.");
+    }
+  }
+
+  async function startNewProgram() {
+    if (!user) return;
+    setShowNewProgramModal(false);
+    setRegenMessage("Generating your new program... this takes about 30 seconds.");
+    try {
+      var res = await fetch("/api/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: user.id, isNewProgram: true })
+      });
+      if (res.ok) {
+        setRegenMessage("New program generated! Refreshing...");
+        setTimeout(function() { window.location.reload(); }, 1500);
+      } else {
+        var err = await res.json();
+        setRegenMessage("Generation failed: " + (err.error || "unknown error") + ". Please try again.");
+      }
+    } catch(e) {
       setRegenMessage("Something went wrong. Please try again.");
     }
   }
@@ -996,10 +1049,10 @@ export default function Dashboard() {
                     <div style={{ fontSize: 13, fontWeight: 300, color: "rgba(255,255,255,0.7)", lineHeight: 1.5 }}>Once you finish your deload, generate your next program. Your logs and progress carry forward.</div>
                   </div>
                   <button
-                    onClick={regenerateProgram}
+                    onClick={advanceBlock}
                     style={{ background: "var(--maroon)", border: "none", color: "white", fontFamily: "Barlow Condensed, sans-serif", fontSize: 13, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", padding: "12px 24px", cursor: "pointer", whiteSpace: "nowrap" }}
                   >
-                    Generate Next Program
+                    Generate Block {program && program.block_number ? Math.min(program.block_number + 1, 3) : 2}
                   </button>
                 </div>
               )}
@@ -1668,6 +1721,30 @@ export default function Dashboard() {
 
         </div>
       </div>
+
+      {showNewProgramModal && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+          <div style={{ background: 'white', maxWidth: 440, width: '100%', padding: 32 }}>
+            <div style={{ fontFamily: 'Barlow Condensed, sans-serif', fontSize: 11, fontWeight: 700, letterSpacing: '0.2em', textTransform: 'uppercase', color: 'var(--gold)', marginBottom: 8 }}>Block 3 Complete</div>
+            <div style={{ fontFamily: 'Playfair Display, serif', fontSize: 22, fontWeight: 900, color: 'var(--charcoal)', marginBottom: 16 }}>Ready for your next<br /><em>12-week program?</em></div>
+            <p style={{ fontSize: 14, fontWeight: 300, color: 'var(--mid)', lineHeight: 1.6, marginBottom: 24 }}>Before we generate your new program, make sure your profile is up to date — your current weight, goals, and schedule. Your new program will use fresh primary exercises so you're always progressing, not repeating.</p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <button
+                onClick={function() { setShowNewProgramModal(false); router.push('/profile'); }}
+                style={{ background: 'var(--maroon)', border: 'none', color: 'white', fontFamily: 'Barlow Condensed, sans-serif', fontSize: 13, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', padding: '14px 24px', cursor: 'pointer' }}
+              >Update Profile First</button>
+              <button
+                onClick={startNewProgram}
+                style={{ background: 'white', border: '1.5px solid var(--border)', color: 'var(--charcoal)', fontFamily: 'Barlow Condensed, sans-serif', fontSize: 13, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', padding: '14px 24px', cursor: 'pointer' }}
+              >My Info Is Current — Generate Now</button>
+              <button
+                onClick={function() { setShowNewProgramModal(false); }}
+                style={{ background: 'none', border: 'none', color: 'var(--mid)', fontFamily: 'Barlow Condensed, sans-serif', fontSize: 12, cursor: 'pointer', padding: '8px' }}
+              >Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {prCelebration && (
         <div style={{ position: 'fixed', top: 24, left: '50%', transform: 'translateX(-50%)', zIndex: 999, background: 'var(--gold)', padding: '16px 28px', display: 'flex', alignItems: 'center', gap: 20, boxShadow: '0 4px 24px rgba(0,0,0,0.25)', animation: 'fadeIn 0.3s ease', minWidth: 280, maxWidth: 480 }}>
