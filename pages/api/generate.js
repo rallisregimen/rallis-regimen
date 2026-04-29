@@ -9,7 +9,8 @@ function getSupabase() {
 
 export const config = { maxDuration: 60 };
 
-function buildTrainingPrompt(intake, profile, days, splitType, splitDesc, hasCardio, previousPrimaries) {
+function buildTrainingPrompt(intake, profile, days, splitType, splitDesc, hasCardio, previousPrimaries, blockNum, previousBlockExercises) {
+  blockNum = blockNum || 1;
   var name = profile.full_name || profile.first_name || 'Member';
   var equipment = intake.equipment || 'full_gym';
   var equipmentDetail = (intake.equipment_detail && intake.equipment_detail.length > 0)
@@ -23,9 +24,6 @@ function buildTrainingPrompt(intake, profile, days, splitType, splitDesc, hasCar
   if (intake.equipment_to_avoid && intake.equipment_to_avoid.length > 0) {
     equipmentExclusions = ' EQUIPMENT NOT AVAILABLE (do not program these even in a full gym): ' + intake.equipment_to_avoid.join(', ') + '.';
   }
-  // For full_gym users: only exclude specialty items if the user actively
-  // used the specific equipment checklist AND did NOT check that item.
-  // If they checked nothing (empty array), assume the full gym has everything.
   if (equipment === 'full_gym' && intake.equipment_detail && intake.equipment_detail.length > 0) {
     var specialtyItems = ['Trap Bar', 'Safety Squat Bar'];
     var missing = specialtyItems.filter(function(item) {
@@ -36,59 +34,60 @@ function buildTrainingPrompt(intake, profile, days, splitType, splitDesc, hasCar
     }
   }
 
-  // Rep scheme and block progression — varies by goal combination
+  // Rep scheme — block-specific ranges
   var repScheme;
-  var blockProgression;
-
-  // Detect secondary influences
   var hasStrengthSecondary = goalSecondary === 'build_strength';
   var hasMuscleSecondary = goalSecondary === 'build_muscle';
   var hasAthleticSecondary = goalSecondary === 'athletic_performance';
-  var hasConditioningSecondary = goalSecondary === 'conditioning' || goalSecondary === 'general_health' || goalSecondary === 'lose_fat';
 
   if (goal === 'build_strength') {
-    // Accessories nudge higher if muscle-building is secondary
     var accReps = hasMuscleSecondary ? '12-15' : '10-15';
-    repScheme = 'REP SCHEME: Main lifts 3-5 sets x 3-6 reps heavy. Supplemental 3-4 sets x 6-10 reps. Accessories 2-3 sets x ' + accReps + ' reps. Full rest between sets.';
-    blockProgression = 'BLOCK PROGRESSION — generate all 3 blocks, each block has the same number of days but different exercise selection and progressing load:\n- Block 1 (weeks 1-4): Foundation. Primaries 4-6 reps, supplementals 6-10 reps, accessories ' + accReps + ' reps. RIR W1=3-4, W2=2-3, W3=1-2, W4=deload (7-8 RIR).\n- Block 2 (weeks 5-8): Intensification. Primaries 3-5 reps, supplementals 6-8 reps, accessories ' + accReps + ' reps. Rotate to heavier variations. RIR same progression.\n- Block 3 (weeks 9-12): Peak. Primaries 2-4 reps, supplementals 5-8 reps, accessories ' + accReps + ' reps. Return to Block 1 primary exercises with higher load targets. RIR same progression.';
+    var primReps = blockNum === 1 ? '4-6' : blockNum === 2 ? '3-5' : '2-4';
+    var suppReps = blockNum === 1 ? '6-10' : blockNum === 2 ? '6-8' : '5-8';
+    repScheme = 'REP SCHEME (BLOCK ' + blockNum + '): Compound primaries ' + primReps + ' reps, supplementals ' + suppReps + ' reps, accessories ' + accReps + ' reps. Full rest 3-5 min on primaries.';
 
   } else if (goal === 'athletic_performance') {
-    var athAccB1 = hasMuscleSecondary ? '12-15' : '12-15';
-    var athAccB3 = hasMuscleSecondary ? '15-20' : '12-15';
-    repScheme = 'REP SCHEME: Start each lifting session with 2-3 speed/power movements (1-6 reps, 30-70% 1RM, max speed, 2-3 min rest). After speed/power work, complete a FULL strength session — strength main lifts 3-4 sets x 5-8 reps, supplemental 3 sets x 8-12 reps, accessories 3 sets x ' + athAccB1 + ' reps. Speed/power is added at the front — it does not replace the rest of the session.';
-    blockProgression = 'BLOCK PROGRESSION — generate all 3 blocks:\n- Block 1 (weeks 1-4): Foundation. Primaries 5-8 reps, supplementals 8-12 reps, accessories ' + athAccB1 + ' reps. RIR W1=3-4, W2=2-3, W3=1-2, W4=deload.\n- Block 2 (weeks 5-8): Power emphasis. Primaries 4-6 reps, supplementals 8-10 reps, accessories ' + athAccB1 + ' reps. Rotate variations. RIR same.\n- Block 3 (weeks 9-12): Peak performance. Primaries 3-5 reps, supplementals 6-8 reps, accessories ' + athAccB3 + ' reps. RIR same.';
+    var athPrim = blockNum === 1 ? '5-8' : blockNum === 2 ? '4-6' : '3-5';
+    var athSupp = blockNum === 1 ? '8-12' : blockNum === 2 ? '8-10' : '6-8';
+    var athAcc = blockNum === 3 && hasMuscleSecondary ? '15-20' : '12-15';
+    repScheme = 'REP SCHEME (BLOCK ' + blockNum + '): Speed/power opener 2-3 exercises at start (1-6 reps, max speed). Then compound primaries ' + athPrim + ' reps, supplementals ' + athSupp + ' reps, accessories ' + athAcc + ' reps.';
 
   } else if (goal === 'conditioning' || goal === 'general_health' || goal === 'lose_fat') {
-    // If athletic_performance is secondary, add heavier primary work — don't contradict with 12-20 everything
-    if (hasAthleticSecondary) {
-      repScheme = 'REP SCHEME: Each lifting session starts with 2 speed/power movements (1-6 reps, max speed — these replace the first warm-up sets, not full working sets). After speed/power, all remaining lifting is 3-4 sets x 12-20 reps, moderate weight, 30-60 sec rest. The session is still primarily conditioning-focused — speed/power is a brief opening block only.';
-      blockProgression = 'BLOCK PROGRESSION — generate all 3 blocks:\n- Block 1 (weeks 1-4): Foundation. Speed/power opener 2 exercises, then all lifting 12-15 reps. RIR W1=3-4, W2=2-3, W3=1-2, W4=deload.\n- Block 2 (weeks 5-8): Volume. Speed/power opener 2 exercises, then 15-20 reps. Rotate variations. RIR same.\n- Block 3 (weeks 9-12): Density. Speed/power opener 2 exercises, then 15-20 reps with shorter rest. RIR same.';
-    } else if (hasStrengthSecondary) {
-      repScheme = 'REP SCHEME: First compound exercise per day is heavier — 3-4 sets x 8-10 reps (strength influence). All other exercises 3-4 sets x 12-20 reps, moderate weight, 30-60 sec rest.';
-      blockProgression = 'BLOCK PROGRESSION — generate all 3 blocks:\n- Block 1 (weeks 1-4): Foundation. First compound 8-10 reps, all others 12-15 reps. RIR W1=3-4, W2=2-3, W3=1-2, W4=deload.\n- Block 2 (weeks 5-8): Volume. First compound 8-10 reps, all others 15-20 reps. Rotate variations. RIR same.\n- Block 3 (weeks 9-12): Density. First compound 6-8 reps, all others 15-20 reps. RIR same.';
+    var condPrim = blockNum === 3 && hasStrengthSecondary ? '6-8' : hasStrengthSecondary ? '8-10' : null;
+    var condAll = blockNum === 1 ? '12-15' : blockNum === 2 ? '15-20' : '15-20';
+    if (hasStrengthSecondary) {
+      repScheme = 'REP SCHEME (BLOCK ' + blockNum + '): First compound ' + condPrim + ' reps, all others ' + condAll + ' reps, 30-60 sec rest.';
+    } else if (hasAthleticSecondary) {
+      repScheme = 'REP SCHEME (BLOCK ' + blockNum + '): Speed/power opener 2 exercises. All remaining lifting ' + condAll + ' reps, 30-60 sec rest.';
     } else {
-      repScheme = 'REP SCHEME FOR LIFTING DAYS: 3-4 sets x 12-20 reps, moderate weight, 30-60 sec rest. Do NOT label lifting days as circuit or conditioning — they are Upper, Lower, or Full Body. Only dedicated cardio days get a cardio label.';
-      blockProgression = 'BLOCK PROGRESSION — generate all 3 blocks:\n- Block 1 (weeks 1-4): Foundation. All exercises 12-15 reps. RIR W1=3-4, W2=2-3, W3=1-2, W4=deload.\n- Block 2 (weeks 5-8): Volume. All exercises 15-20 reps, slightly lower weight. Rotate variations. RIR same.\n- Block 3 (weeks 9-12): Density. Mix of 12-15 and 20-25 reps, shorter rest. RIR same.';
+      repScheme = 'REP SCHEME (BLOCK ' + blockNum + '): All exercises ' + condAll + ' reps, moderate weight, 30-60 sec rest.';
     }
 
   } else {
-    // build_muscle (default) — secondary goal modifies primary compound rep ranges
-    var primaryRepsB1, primaryRepsB2, primaryRepsB3;
+    // build_muscle
+    var primaryReps, suppReps2, isoReps;
     if (hasStrengthSecondary) {
-      primaryRepsB1 = '5-8'; primaryRepsB2 = '4-6'; primaryRepsB3 = '3-5';
+      primaryReps = blockNum === 1 ? '5-8' : blockNum === 2 ? '4-6' : '3-5';
     } else if (hasAthleticSecondary) {
-      primaryRepsB1 = '5-8'; primaryRepsB2 = '4-6'; primaryRepsB3 = '4-6';
+      primaryReps = blockNum === 1 ? '5-8' : '4-6';
     } else {
-      primaryRepsB1 = '6-10'; primaryRepsB2 = '5-8'; primaryRepsB3 = '4-6';
+      primaryReps = blockNum === 1 ? '6-10' : blockNum === 2 ? '5-8' : '4-6';
     }
+    suppReps2 = blockNum === 3 ? '8-10' : '8-12';
+    isoReps = blockNum === 1 ? '12-15' : blockNum === 2 ? '15-20' : '15-25';
 
     var athleticRepNote = hasAthleticSecondary
-      ? ' Speed/power block (2-3 exercises at start of session, 1-6 reps, max speed) precedes the hypertrophy work — those use different rep ranges from the primaries listed below.'
+      ? ' Speed/power block (2-3 exercises at start, 1-6 reps, max speed) precedes the hypertrophy work.'
       : '';
 
-    repScheme = 'REP SCHEME BY EXERCISE TYPE:' + athleticRepNote + '\n- Compound primaries (first 1-2 exercises): ' + primaryRepsB1 + ' reps — heavier, more rest (2-3 min).\n- Compound supplementals: 8-12 reps — moderate weight, 90 sec rest.\n- Isolation accessories (flys, raises, curls, extensions, leg extensions, etc.): ALWAYS 12-20 reps minimum — never below 12. Higher reps on isolations = more time under tension = more hypertrophy. 60-90 sec rest.\nISOLATION REP FLOOR: 12 reps is the absolute minimum for any isolation movement. Flys at 8 reps, lateral raises at 8 reps, curls at 8 reps — all violations.';
+    repScheme = 'REP SCHEME (BLOCK ' + blockNum + '):' + athleticRepNote + '\n- Compound primaries (first 1-2 exercises): ' + primaryReps + ' reps, 2-3 min rest.\n- Compound supplementals: ' + suppReps2 + ' reps, 90 sec rest.\n- Isolation accessories (flys, raises, curls, extensions, etc.): ' + isoReps + ' reps minimum — NEVER below 12. 60-90 sec rest.\nISOLATION REP FLOOR: 12 reps absolute minimum for any isolation. Flys at 8 reps, curls at 8 reps = violation.';
+  }
 
-    blockProgression = 'BLOCK PROGRESSION — generate all 3 blocks with progressing intensity on compounds and progressing volume on isolations:\n- Block 1 (weeks 1-4): Foundation volume. Compound primaries ' + primaryRepsB1 + ' reps, supplementals 8-12 reps, isolations 12-15 reps. RIR W1=3-4, W2=2-3, W3=1-2, W4=deload (7-8 RIR). Use different exercise variations in each block.\n- Block 2 (weeks 5-8): Intensification. Compound primaries ' + primaryRepsB2 + ' reps (heavier), supplementals 8-12 reps, isolations 15-20 reps (higher volume). Rotate to different exercise variations from Block 1. RIR same progression.\n- Block 3 (weeks 9-12): Peak. Compound primaries ' + primaryRepsB3 + ' reps (heaviest), supplementals 8-10 reps, isolations 15-25 reps (highest volume). Can return to Block 1 primary exercises with heavier load targets. RIR same progression.\nKEY: Isolation rep ranges INCREASE block to block while compound primaries get heavier. This is intentional — more metabolic stress on isolations over time.';
+  // Block context note — what came before, so exercises can be rotated
+  var blockContextNote = '';
+  if (blockNum > 1 && previousBlockExercises && previousBlockExercises.length > 0) {
+    var blockLabel = blockNum === 2 ? 'Block 1' : 'Blocks 1 and 2';
+    blockContextNote = '\n\nEXERCISE ROTATION (BLOCK ' + blockNum + '): Rotate primary compound exercises from ' + blockLabel + ' to provide new stimulus. Previously used primaries: ' + previousBlockExercises.join(', ') + '. Do NOT repeat these as primary (first) exercises on any day in this block. Supplemental and accessory exercises may overlap freely.';
   }
 
   // Speed/power note for athletic performance
@@ -143,10 +142,12 @@ function buildTrainingPrompt(intake, profile, days, splitType, splitDesc, hasCar
 
   var previousPrimariesNote = '';
   if (previousPrimaries && previousPrimaries.length > 0) {
-    previousPrimariesNote = '\n\nEXERCISE VARIETY — NEW PROGRAM: This member just completed a full 12-week program. Do NOT use these exercises as Block 1 primary compound movements — rotate to fresh variations to provide new stimulus: ' + previousPrimaries.join(', ') + '. For example: if Back Squat is listed, open Block 1 lower days with Front Squat, Bulgarian Split Squat, or Goblet Squat instead. If Barbell Bench Press is listed, open with Incline DB Press or Cable Press. Supplemental and accessory work may overlap freely — only the first exercise on each day needs to rotate.';
+    previousPrimariesNote = '\n\nEXERCISE VARIETY — NEW PROGRAM: This member just completed a full 12-week program. Do NOT use these exercises as primary compound movements — rotate to fresh variations: ' + previousPrimaries.join(', ') + '. Supplemental and accessory work may overlap freely.';
   }
 
-  return 'Generate ONLY the training section as valid JSON. No text outside JSON.\n\nMEMBER: ' + name + ', ' + intake.age + 'yo ' + intake.sex + ', ' + (intake.experience_level || 'intermediate') + '. Equipment: ' + equipment + '.' + equipmentDetail + equipmentExclusions + ' Primary goal: ' + goal + '. Secondary goal: ' + (goalSecondary || 'none') + '. Session length: ' + (intake.session_length_mins || 60) + ' min.' + injuryNote + successNote + previousPrimariesNote + '\n\nSPLIT INSTRUCTIONS (follow exactly):\n' + splitDesc + '\n\n' + repScheme + speedPowerNote + '\n\n' + structureGuide + '\n\n' + blockProgression + cardioNote + '\n\nRULES:\n1. Each block\'s "days" array must have EXACTLY ' + days + ' objects — count before outputting.\n2. Day names must be descriptive: "Upper A", "Lower B", "Cardio", "Full Body". Never "string" or "-".\n3. ' + equipment + ': home_bands/bodyweight_only = no machines; dumbbells_only = no barbells or machines.\n4. No repeated exercises within the same session.\n5. Bands = 12-30 reps minimum.\n6. Max 3 compound exercises per day (4 for full body/bodyweight days).\n7. SESSION LENGTH IS ' + sessionMins + ' MINUTES. Each day must have exactly ' + exerciseCap + ' exercises total — no more. This is a hard limit to fit within the session time. Do not exceed it.\n8. Rest times: conditioning goal = 30-60 sec; hypertrophy = 60-90 sec isolation / 2-3 min compounds; strength = 3-5 min main lifts.' + plyoNote + namingRule + '\n\nOutput ONLY this JSON structure (fill in all fields with real values, never use placeholder text):\n{"split":"' + splitType + '","weekly_schedule":{"day_1":"","day_2":"","day_3":"","day_4":"","day_5":"","day_6":"","day_7":""},"blocks":[{"block":1,"weeks":"1-4","days":[/* EXACTLY ' + days + ' day objects */]},{"block":2,"weeks":"5-8","days":[/* EXACTLY ' + days + ' day objects */]},{"block":3,"weeks":"9-12","days":[/* EXACTLY ' + days + ' day objects */]}]}\n\nDay object format: {"day":"Upper A","focus":"Horizontal push and pull","exercises":[{"name":"Barbell Bench Press","sets":4,"reps":"8-10","rir_week1":"3-4","rir_week2":"2-3","rir_week3":"1-2","rir_week4":"7-8 deload","rest":"2 min","note":"Control the descent, press explosively"}]}';
+  var weekLabel = blockNum === 1 ? '1-4' : blockNum === 2 ? '5-8' : '9-12';
+
+  return 'Generate ONLY Block ' + blockNum + ' training as valid JSON. No text outside JSON.\n\nMEMBER: ' + name + ', ' + intake.age + 'yo ' + intake.sex + ', ' + (intake.experience_level || 'intermediate') + '. Equipment: ' + equipment + '.' + equipmentDetail + equipmentExclusions + ' Primary goal: ' + goal + '. Secondary goal: ' + (goalSecondary || 'none') + '. Session length: ' + (intake.session_length_mins || 60) + ' min.' + injuryNote + successNote + previousPrimariesNote + blockContextNote + '\n\nSPLIT INSTRUCTIONS (follow exactly):\n' + splitDesc + '\n\n' + repScheme + speedPowerNote + '\n\n' + structureGuide + cardioNote + '\n\nRULES:\n1. The "days" array must have EXACTLY ' + days + ' objects — count before outputting.\n2. Day names must be descriptive: "Upper A", "Lower B", "Cardio", "Full Body". Never "string" or "-".\n3. ' + equipment + ': home_bands/bodyweight_only = no machines; dumbbells_only = no barbells or machines.\n4. No repeated exercises within the same session.\n5. Bands = 12-30 reps minimum.\n6. Max 3 compound exercises per day (4 for full body/bodyweight days).\n7. SESSION LENGTH IS ' + sessionMins + ' MINUTES. Each day must have exactly ' + exerciseCap + ' exercises total — no more. Hard limit.\n8. Rest times: conditioning goal = 30-60 sec; hypertrophy = 60-90 sec isolation / 2-3 min compounds; strength = 3-5 min main lifts.' + plyoNote + namingRule + '\n\nOutput ONLY this JSON (no extra text):\n{"block":' + blockNum + ',"weeks":"' + weekLabel + '","days":[/* EXACTLY ' + days + ' day objects */]}\n\nDay object format: {"day":"Upper A","focus":"Horizontal push and pull","exercises":[{"name":"Barbell Bench Press","sets":4,"reps":"6-8","rir_week1":"3-4","rir_week2":"2-3","rir_week3":"1-2","rir_week4":"7-8 deload","rest":"2 min","note":"Control the descent"}]}';
 }
 
 // INGREDIENT LOOKUP TABLE — [protein_g, carbs_g, fat_g] per unit
@@ -746,17 +747,60 @@ export default async function handler(req, res) {
       console.log('Previous primaries found:', previousPrimaries ? previousPrimaries.length : 0);
     }
 
-    var trainingPrompt = buildTrainingPrompt(intake, profile, days, splitType, splitDesc, isAnyConditioning, previousPrimaries);
     var nutritionPrompt = buildNutritionSleepPrompt(intake, profile, days, proteinTarget, calorieTarget, carbsTraining, carbsRest, fatTraining, fatRest);
 
-    var trainingResult = await callClaude(trainingPrompt);
-    // Brief pause between calls to reduce rate limit pressure
+    // Generate 3 blocks sequentially — one API call per block to prevent truncation
+    function extractPrimaries(blockData) {
+      var primaries = [];
+      if (!blockData || !blockData.days) return primaries;
+      blockData.days.forEach(function(day) {
+        if (day.exercises && day.exercises[0] && day.exercises[0].name) {
+          if (primaries.indexOf(day.exercises[0].name) === -1) {
+            primaries.push(day.exercises[0].name);
+          }
+        }
+      });
+      return primaries;
+    }
+
+    var block1Prompt = buildTrainingPrompt(intake, profile, days, splitType, splitDesc, isAnyConditioning, previousPrimaries, 1, []);
+    var block1Result = await callClaude(block1Prompt);
+    var block1Data = cleanAndParse(block1Result);
+    var block1Primaries = extractPrimaries(block1Data);
+
+    await sleep(3000);
+
+    var block2Prompt = buildTrainingPrompt(intake, profile, days, splitType, splitDesc, isAnyConditioning, null, 2, block1Primaries);
+    var block2Result = await callClaude(block2Prompt);
+    var block2Data = cleanAndParse(block2Result);
+    var block2Primaries = block1Primaries.concat(extractPrimaries(block2Data));
+
+    await sleep(3000);
+
+    var block3Prompt = buildTrainingPrompt(intake, profile, days, splitType, splitDesc, isAnyConditioning, null, 3, block2Primaries);
+    var block3Result = await callClaude(block3Prompt);
+    var block3Data = cleanAndParse(block3Result);
+
+    // Build weekly schedule from block 1 day names
+    var weeklySchedule = {};
+    var dayNames = block1Data && block1Data.days ? block1Data.days.map(function(d) { return d.day; }) : [];
+    for (var i = 0; i < 7; i++) {
+      weeklySchedule['day_' + (i + 1)] = dayNames[i] || (i < days ? 'Training' : 'Rest');
+    }
+
+    var trainingData = {
+      split: splitType,
+      weekly_schedule: weeklySchedule,
+      blocks: [
+        { block: 1, weeks: '1-4', days: block1Data ? block1Data.days || [] : [] },
+        { block: 2, weeks: '5-8', days: block2Data ? block2Data.days || [] : [] },
+        { block: 3, weeks: '9-12', days: block3Data ? block3Data.days || [] : [] }
+      ]
+    };
+
     await sleep(3000);
     var nutritionResult = await callClaude(nutritionPrompt);
-    var results = [trainingResult, nutritionResult];
-
-    var trainingData = cleanAndParse(results[0]);
-    var nutritionRaw = cleanAndParse(results[1]);
+    var nutritionRaw = cleanAndParse(nutritionResult);
 
     // JS calculates all macros from Claude's ingredient picks — no Claude math
     var mealPlan = buildMealPlanFromIngredients(
