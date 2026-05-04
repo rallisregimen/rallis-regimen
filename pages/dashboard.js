@@ -387,7 +387,8 @@ export default function Dashboard() {
         // Convert DB logs to the local key format and merge with localStorage
         var dbLogs = {};
         data.logs.forEach(function(log) {
-          var key = 'b' + (log.block_number || 1) + '--w' + log.week_number + '--' + log.day_label + '--' + log.exercise_name + '--' + (log.set_number - 1);
+          var programShortId = (program && program.id) ? program.id.slice(-6) : 'x';
+          var key = 'p' + programShortId + '--b' + (log.block_number || 1) + '--w' + log.week_number + '--' + log.day_label + '--' + log.exercise_name + '--' + (log.set_number - 1);
           dbLogs[key] = {
             weight: log.weight_lbs ? String(log.weight_lbs) : '',
             reps: log.reps ? String(log.reps) : '',
@@ -726,7 +727,8 @@ export default function Dashboard() {
   }
 
   function getLogKey(dayLabel, exerciseName, setIndex) {
-    return "b" + currentBlockNum + "--w" + currentWeek + "--" + dayLabel + "--" + exerciseName + "--" + setIndex;
+    var programId = program ? program.id.slice(-6) : 'x';
+    return "p" + programId + "--b" + currentBlockNum + "--w" + currentWeek + "--" + dayLabel + "--" + exerciseName + "--" + setIndex;
   }
 
   function updateLog(dayLabel, exerciseName, setIndex, field, value) {
