@@ -7,7 +7,7 @@ function getSupabase() {
   );
 }
 
-export const config = { maxDuration: 60 };
+export const config = { maxDuration: 300 };
 
 function buildTrainingPrompt(intake, profile, days, splitType, splitDesc, hasCardio, previousPrimaries, blockNum, previousBlockExercises) {
   blockNum = blockNum || 1;
@@ -768,14 +768,14 @@ export default async function handler(req, res) {
     var block1Data = cleanAndParse(block1Result);
     var block1Primaries = extractPrimaries(block1Data);
 
-    await sleep(3000);
+    await sleep(1000);
 
     var block2Prompt = buildTrainingPrompt(intake, profile, days, splitType, splitDesc, isAnyConditioning, null, 2, block1Primaries);
     var block2Result = await callClaude(block2Prompt);
     var block2Data = cleanAndParse(block2Result);
     var block2Primaries = block1Primaries.concat(extractPrimaries(block2Data));
 
-    await sleep(3000);
+    await sleep(1000);
 
     var block3Prompt = buildTrainingPrompt(intake, profile, days, splitType, splitDesc, isAnyConditioning, null, 3, block2Primaries);
     var block3Result = await callClaude(block3Prompt);
@@ -798,7 +798,7 @@ export default async function handler(req, res) {
       ]
     };
 
-    await sleep(3000);
+    await sleep(1000);
     var nutritionResult = await callClaude(nutritionPrompt);
     var nutritionRaw = cleanAndParse(nutritionResult);
 
