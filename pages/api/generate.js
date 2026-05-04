@@ -9,7 +9,7 @@ function getSupabase() {
 
 export const config = { maxDuration: 300 };
 
-function buildTrainingPrompt(intake, profile, days, splitType, splitDesc, hasCardio, previousPrimaries, blockNum, previousBlockExercises) {
+function buildTrainingPrompt(intake, profile, days, splitType, splitDesc, hasCardio, previousPrimaries, blockNum, previousBlockPrimaries, allPreviousExercises) {
   blockNum = blockNum || 1;
   var name = profile.full_name || profile.first_name || 'Member';
   var equipment = intake.equipment || 'full_gym';
@@ -85,9 +85,14 @@ function buildTrainingPrompt(intake, profile, days, splitType, splitDesc, hasCar
 
   // Block context note — what came before, so exercises can be rotated
   var blockContextNote = '';
-  if (blockNum > 1 && previousBlockExercises && previousBlockExercises.length > 0) {
+  if (blockNum > 1 && previousBlockPrimaries && previousBlockPrimaries.length > 0) {
     var blockLabel = blockNum === 2 ? 'Block 1' : 'Blocks 1 and 2';
-    blockContextNote = '\n\nEXERCISE ROTATION (BLOCK ' + blockNum + '): Rotate primary compound exercises from ' + blockLabel + ' to provide new stimulus. Previously used primaries: ' + previousBlockExercises.join(', ') + '. Do NOT repeat these as primary (first) exercises on any day in this block. Supplemental and accessory exercises may overlap freely.';
+    blockContextNote = '\n\nEXERCISE ROTATION (BLOCK ' + blockNum + '): This block must use different exercises from ' + blockLabel + ' to provide fresh stimulus.'
+      + '\nPrimary exercises (first exercise per day) MUST be different — do NOT repeat any of these as a primary: ' + previousBlockPrimaries.join(', ') + '.'
+      + (allPreviousExercises && allPreviousExercises.length > 0
+        ? '\nAll previously used exercises (avoid repeating where possible — some overlap on isolations is acceptable if necessary): ' + allPreviousExercises.join(', ') + '.'
+        : '')
+      + '\nUse the full exercise library to find fresh variations. If an exercise must repeat, it should be an isolation accessory, never a primary or supplemental compound.';
   }
 
   // Speed/power note for athletic performance
@@ -750,6 +755,20 @@ export default async function handler(req, res) {
     var nutritionPrompt = buildNutritionSleepPrompt(intake, profile, days, proteinTarget, calorieTarget, carbsTraining, carbsRest, fatTraining, fatRest);
 
     // Generate 3 blocks sequentially — one API call per block to prevent truncation
+    function extractAllExercises(blockData) {
+      var exercises = [];
+      if (!blockData || !blockData.days) return exercises;
+      blockData.days.forEach(function(day) {
+        if (!day.exercises) return;
+        day.exercises.forEach(function(ex) {
+          if (ex && ex.name && exercises.indexOf(ex.name) === -1) {
+            exercises.push(ex.name);
+          }
+        });
+      });
+      return exercises;
+    }
+
     function extractPrimaries(blockData) {
       var primaries = [];
       if (!blockData || !blockData.days) return primaries;
@@ -767,17 +786,19 @@ export default async function handler(req, res) {
     var block1Result = await callClaude(block1Prompt);
     var block1Data = cleanAndParse(block1Result);
     var block1Primaries = extractPrimaries(block1Data);
+    var block1AllExercises = extractAllExercises(block1Data);
 
     await sleep(1000);
 
-    var block2Prompt = buildTrainingPrompt(intake, profile, days, splitType, splitDesc, isAnyConditioning, null, 2, block1Primaries);
+    var block2Prompt = buildTrainingPrompt(intake, profile, days, splitType, splitDesc, isAnyConditioning, null, 2, block1Primaries, block1AllExercises);
     var block2Result = await callClaude(block2Prompt);
     var block2Data = cleanAndParse(block2Result);
     var block2Primaries = block1Primaries.concat(extractPrimaries(block2Data));
+    var block2AllExercises = block1AllExercises.concat(extractAllExercises(block2Data));
 
     await sleep(1000);
 
-    var block3Prompt = buildTrainingPrompt(intake, profile, days, splitType, splitDesc, isAnyConditioning, null, 3, block2Primaries);
+    var block3Prompt = buildTrainingPrompt(intake, profile, days, splitType, splitDesc, isAnyConditioning, null, 3, block2Primaries, block2AllExercises);
     var block3Result = await callClaude(block3Prompt);
     var block3Data = cleanAndParse(block3Result);
 
