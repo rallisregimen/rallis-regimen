@@ -745,7 +745,7 @@ export default function Dashboard() {
     });
   }
 
-  async function saveLog(dayLabel, exerciseName, setIndex, setNum) {
+  async function saveLog(dayLabel, exerciseName, setIndex, setNum, prescribedReps) {
     var key = getLogKey(dayLabel, exerciseName, setIndex);
     var logData = logs[key] || {};
 
@@ -778,6 +778,7 @@ export default function Dashboard() {
           blockNumber: program ? program.block_number : 1,
           weekNumber: currentWeek,
           dayLabel: dayLabel,
+          prescribedReps: prescribedReps || null,
         })
       });
 
@@ -799,6 +800,7 @@ export default function Dashboard() {
             blockNumber: program ? program.block_number : 1,
             weekNumber: currentWeek,
             dayLabel: dayLabel,
+            prescribedReps: prescribedReps || null,
           })
         });
       }
@@ -1198,7 +1200,7 @@ export default function Dashboard() {
                                       </div>
                                       <button
                                         className={logEntry.saved ? "log-btn saved" : logEntry.saveError ? "log-btn" : "log-btn"}
-                                        onClick={function() { saveLog(day.day, ex.name, si, si + 1); }}
+                                        onClick={function() { saveLog(day.day, ex.name, si, si + 1, ex.reps); }}
                                         disabled={logEntry.saving}
                                         title={logEntry.saveError ? "Save failed — tap to retry" : "Save set and get next week suggestion"}
                                         style={logEntry.saveError ? { background: '#E74C3C' } : {}}
