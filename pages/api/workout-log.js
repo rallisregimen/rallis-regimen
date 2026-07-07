@@ -34,7 +34,7 @@ async function saveLog(req, res) {
       notes: b.notes || null,
       logged_at: new Date().toISOString()
     });
-    var suggestion = await getProgression(b.userId, b.exerciseName, b.weightLbs, b.reps, b.rir, b.notes, supabase);
+    var suggestion = await getProgression(b.userId, b.exerciseName, b.weightLbs, b.reps, b.rir, b.notes, b.prescribedReps, supabase);
     return res.status(200).json({ success: true, suggestion: suggestion });
   } catch (err) {
     console.error("saveLog error:", err);
@@ -59,7 +59,7 @@ async function getLogs(req, res) {
   }
 }
 
-async function getProgression(userId, exerciseName, weightLbs, reps, rir, notes, supabase) {
+async function getProgression(userId, exerciseName, weightLbs, reps, rir, notes, prescribedReps, supabase) {
   try {
     var hist = await supabase
       .from("workout_logs")
@@ -69,14 +69,17 @@ async function getProgression(userId, exerciseName, weightLbs, reps, rir, notes,
       .order("logged_at", { ascending: false })
       .limit(4);
     var history = hist.data ? hist.data.slice(1) : [];
-    var prompt = "You are a fitness coach. Give a one-sentence progression suggestion for next week based on this data.\n";
+    var prompt = "You are a strength coach. Give a single one-sentence progression suggestion for next week.\n";
     prompt += "Exercise: " + exerciseName + "\n";
     prompt += "This session: " + (weightLbs ? weightLbs + " lbs" : "bodyweight") + " x " + reps + " reps @ " + rir + " RIR\n";
     if (notes) prompt += "Notes: " + notes + "\n";
+    if (prescribedReps) {
+      prompt += "PRESCRIBED REP RANGE: " + prescribedReps + ". Your suggestion MUST stay within this range. Do not suggest more reps than the upper end of this range. Do not suggest fewer reps than the lower end. Only suggest adding weight if the member is at or above the top of the range with low RIR.\n";
+    }
     history.forEach(function(h) {
       prompt += "Previous: " + (h.weight_lbs || "BW") + " x " + h.reps + " @ " + h.rir + "\n";
     });
-    prompt += "Suggestion:";
+    prompt += "Suggestion (one sentence, stay within prescribed rep range):";
     var resp = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: {
