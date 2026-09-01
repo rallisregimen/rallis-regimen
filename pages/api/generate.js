@@ -9,7 +9,86 @@ function getSupabase() {
 
 export const config = { maxDuration: 300 };
 
-function buildTrainingPrompt(intake, profile, days, splitType, splitDesc, hasCardio, previousPrimaries, blockNum, previousBlockPrimaries, allPreviousExercises) {
+var MOVEMENT_PATTERNS = {
+  'vertical_press': ['overhead press','shoulder press','arnold press','push press','pin overhead press','seated press','seated barbell','military press','z press','log press'],
+  'horizontal_press': ['bench press','incline press','decline press','floor press','pin press','board press','close-grip bench','dumbbell press','cable press','machine press','chest press'],
+  'squat': ['back squat','front squat','goblet squat','box squat','pause squat','hatfield squat','belt squat','zercher squat','hack squat','safety squat'],
+  'hip_hinge': ['deadlift','rdl','romanian deadlift','good morning','hip thrust','glute bridge','trap bar deadlift','sumo deadlift','rack pull','deficit deadlift','snatch grip deadlift'],
+  'vertical_pull': ['pull-up','pullup','chin-up','chinup','lat pulldown','close grip lat pulldown','cable lat pushdown'],
+  'horizontal_pull': ['barbell row','dumbbell row','cable row','chest-supported row','inverted row','machine row','seal row','gorilla row'],
+  'lunge_pattern': ['lunge','split squat','bulgarian split squat','step-up','step up','pistol squat','skater squat','single leg squat','cossack squat'],
+  'lateral_raise': ['lateral raise','side raise','side delt'],
+  'front_raise': ['front raise'],
+  'chest_fly': ['fly','flye','pec deck','cable crossover'],
+  'rear_delt': ['face pull','rear delt','reverse fly','reverse pec deck'],
+  'bicep_curl': ['curl','hammer curl','preacher curl','concentration curl'],
+  'tricep_push': ['pushdown','tricep extension','skull crusher','jm press','dip','overhead extension']
+};
+
+function getPatterns(exerciseName) {
+  var name = exerciseName.toLowerCase();
+  var matched = [];
+  Object.keys(MOVEMENT_PATTERNS).forEach(function(pattern) {
+    var keywords = MOVEMENT_PATTERNS[pattern];
+    for (var i = 0; i < keywords.length; i++) {
+      if (name.indexOf(keywords[i]) !== -1) {
+        matched.push(pattern);
+        break;
+      }
+    }
+  });
+  return matched;
+}
+
+function getPatternsFromBlock(blockData) {
+  var patterns = [];
+  if (!blockData || !blockData.days) return patterns;
+  blockData.days.forEach(function(day) {
+    if (!day.exercises) return;
+    day.exercises.forEach(function(ex) {
+      if (!ex || !ex.name) return;
+      var ps = getPatterns(ex.name);
+      ps.forEach(function(p) {
+        if (patterns.indexOf(p) === -1) patterns.push(p);
+      });
+    });
+  });
+  return patterns;
+}
+
+function getPrimaryPatternsFromBlock(blockData) {
+  var patterns = [];
+  if (!blockData || !blockData.days) return patterns;
+  blockData.days.forEach(function(day) {
+    if (!day.exercises || !day.exercises[0]) return;
+    var ps = getPatterns(day.exercises[0].name);
+    ps.forEach(function(p) {
+      if (patterns.indexOf(p) === -1) patterns.push(p);
+    });
+  });
+  return patterns;
+}
+
+function buildPatternDescription(patterns) {
+  var labels = {
+    'vertical_press': 'vertical press (overhead press and all variations)',
+    'horizontal_press': 'horizontal press (bench press and all variations)',
+    'squat': 'squat pattern (all squat variations)',
+    'hip_hinge': 'hip hinge (deadlift/RDL and all variations)',
+    'vertical_pull': 'vertical pull (pull-ups, lat pulldown and all variations)',
+    'horizontal_pull': 'horizontal row (barbell/dumbbell/cable rows and all variations)',
+    'lunge_pattern': 'lunge/single-leg pattern',
+    'lateral_raise': 'lateral raise pattern',
+    'front_raise': 'front raise pattern',
+    'chest_fly': 'chest fly pattern',
+    'rear_delt': 'rear delt pattern',
+    'bicep_curl': 'bicep curl pattern',
+    'tricep_push': 'tricep extension/pushdown pattern'
+  };
+  return patterns.map(function(p) { return labels[p] || p; }).join(', ');
+}
+
+function buildTrainingPrompt(intake, profile, days, splitType, splitDesc, hasCardio, previousPrimaries, blockNum, previousBlockPrimaries, allPreviousExercises, previousBlockPatterns, previousPrimaryPatterns) {
   blockNum = blockNum || 1;
   var name = profile.full_name || profile.first_name || 'Member';
   var equipment = intake.equipment || 'full_gym';
@@ -92,14 +171,24 @@ function buildTrainingPrompt(intake, profile, days, splitType, splitDesc, hasCar
 
   // Block context note — what came before, so exercises can be rotated
   var blockContextNote = '';
-  if (blockNum > 1 && previousBlockPrimaries && previousBlockPrimaries.length > 0) {
+  if (blockNum > 1) {
     var blockLabel = blockNum === 2 ? 'Block 1' : 'Blocks 1 and 2';
-    blockContextNote = '\n\nEXERCISE ROTATION (BLOCK ' + blockNum + '): Rotate exercises from ' + blockLabel + ' to provide fresh stimulus and variety. Be creative — use the full exercise library.'
-      + '\nPrimary exercises (first per day) MUST be different from these: ' + previousBlockPrimaries.join(', ') + '.'
-      + (allPreviousExercises && allPreviousExercises.length > 0
-        ? '\nFor supplemental and accessory slots, actively seek variation — use different angles, implements, and movement patterns from: ' + allPreviousExercises.join(', ') + '. Some isolation overlap is acceptable if truly necessary, but push for variety.'
-        : '')
-      + '\nIMPORTANT: Avoiding previous exercises does NOT mean defaulting to basic movements. Use specialty variations, less common exercises, and different loading patterns. A block that avoids previous exercises but only programs basic barbell movements is a failure of creativity. Use exercises like pause variations, tempo work, single-leg/single-arm variations, cables, machines, and specialty bar options where available.';
+    blockContextNote = '\n\nBLOCK ' + blockNum + ' EXERCISE ROTATION — HARD RULES:';
+
+    if (previousPrimaryPatterns && previousPrimaryPatterns.length > 0) {
+      blockContextNote += '\n\nPRIMARY EXERCISE PATTERNS PROHIBITED (first exercise per day): The following movement pattern categories were used as primaries in ' + blockLabel + ' and MUST NOT appear as the first exercise on ANY day in Block ' + blockNum + '. This includes ALL variations and implements within these patterns:\n  PROHIBITED PRIMARY PATTERNS: ' + buildPatternDescription(previousPrimaryPatterns);
+      blockContextNote += '\n  Example: if "vertical press" is prohibited, you cannot use Overhead Press, Seated Press, Push Press, Arnold Press, or any other vertical pressing movement as a primary. You must choose a primary from an entirely different movement pattern category.';
+    }
+
+    if (previousBlockPatterns && previousBlockPatterns.length > 0) {
+      blockContextNote += '\n\nSUPPLEMENTAL AND ACCESSORY ROTATION: The following patterns were used across ALL exercises in ' + blockLabel + '. For supplemental slots (second exercise per day), avoid these patterns entirely if possible. For accessory slots, rotate to different variations — a pattern used twice in ' + blockLabel + ' should appear at most once in Block ' + blockNum + ':\n  PREVIOUSLY USED PATTERNS: ' + buildPatternDescription(previousBlockPatterns);
+    }
+
+    if (allPreviousExercises && allPreviousExercises.length > 0) {
+      blockContextNote += '\n\nSPECIFIC EXERCISES TO AVOID (use different exercise names — do not just rename the same movement):\n  ' + allPreviousExercises.join(', ');
+    }
+
+    blockContextNote += '\n\nCREATIVITY REQUIREMENT: Blocks must feel meaningfully different. Use the full exercise library — specialty bar variations, machines, cables, unilateral movements, tempo/pause variations. A block that avoids previous exercises but only programs basic bilateral barbell work is a failure. Aim for at least 60% new exercise names compared to previous blocks.';
   }
 
   // Speed/power note for athletic performance
@@ -119,10 +208,10 @@ function buildTrainingPrompt(intake, profile, days, splitType, splitDesc, hasCar
   if (splitType === 'FULL BODY') {
     structureGuide = 'FULL BODY STRUCTURE: Each session hits every major muscle group. Rotate emphasis across days:\n- Day A emphasis: Horizontal push + hip-dominant lower + vertical pull. Accessories: 1 bicep (supinated curl or hammer curl), 1 tricep (pushdown or overhead extension — not both), 1 shoulder isolation.\n- Day B emphasis: Vertical push + quad-dominant lower + horizontal pull. Accessories: 1 bicep (different pattern from Day A), 1 tricep (different pattern from Day A), abs.\n- Day C emphasis (if 3+ days): Horizontal pull + hip-dominant lower + horizontal push. Accessories: 1 shoulder, 1 bicep, 1 tricep, abs.\nDIVERSITY RULE: No two accessories in the same session can use the same movement pattern. Bicep exercises must use different angles/grips from each other. Tricep exercises must use different angles (pushdown vs overhead) from each other.';
   } else if (splitType === 'UPPER LOWER' || splitType === 'UPPER LOWER CARDIO') {
-    structureGuide = 'UPPER/LOWER STRUCTURE:\n- Upper A: Horizontal push/pull emphasis. Primary: 1 horizontal press + 1 horizontal row. Supplemental: 1 vertical pull, 1 front delt or lateral raise. Accessories: 1 bicep (supinated curl pattern), 1 tricep (pushdown pattern). Do NOT include rear delt work on Upper A.\n- Upper B: Vertical push/pull emphasis. Primary: 1 vertical press + 1 vertical pull. Supplemental: 1 horizontal press or chest isolation, 1 lateral raise. Accessories: 1 bicep (hammer curl or incline curl — different from Upper A), 1 tricep (overhead extension — different from Upper A). Do NOT include rear delt work on Upper B.\n- Lower A: Hip-dominant. Primary: 1 hip hinge (RDL, deadlift). Supplemental: 1 quad movement, 1 glute isolation. Accessories: 1 hamstring isolation, calves, 1 ab movement. NO sled or carries if a lunge variation is already programmed.\n- Lower B: Quad-dominant. Primary: 1 squat variation. Supplemental: 1 hip hinge variation, 1 glute work. Accessories: 1 leg extension or step-up, 1 hamstring curl, calves, abs.\nDIVERSITY RULE: On any given day, bicep accessories must use different movement patterns from each other, and tricep accessories must use different movement patterns from each other. Max 2 pressing movements per upper day total.';
+    structureGuide = 'UPPER/LOWER STRUCTURE:\n- Upper A: Horizontal push/pull emphasis. Primary: 1 horizontal press + 1 horizontal row. Supplemental: 1 vertical pull, 1 front delt or lateral raise. Accessories: 1 bicep (supinated curl pattern), 1 tricep (pushdown pattern). Do NOT include rear delt work on Upper A.\n- Upper B: Vertical push/pull emphasis. Primary: 1 vertical press + 1 vertical pull. Supplemental: 1 horizontal press or chest isolation, 1 lateral raise. Accessories: 1 bicep (hammer curl or incline curl — different from Upper A), 1 tricep (overhead extension — different from Upper A). Do NOT include rear delt work on Upper B.\n- Lower A: Hip-dominant. Primary: 1 hip hinge (RDL, deadlift). Supplemental: 1 UNILATERAL leg movement — REQUIRED: Bulgarian split squat, single-leg RDL, step-up, slider lunge, or skater squat. This is mandatory, not optional. Accessories: 1 hamstring isolation, 1 glute isolation, calves, 1 ab movement.\n- Lower B: Quad-dominant. Primary: 1 squat variation. Supplemental: 1 hip hinge variation. Accessories: 1 UNILATERAL leg movement (different from Lower A — if Lower A has Bulgarian split squat, Lower B uses step-up or single-leg press), leg extension or hamstring curl, calves, abs.\nDIVERSITY RULE: On any given day, bicep accessories must use different movement patterns from each other, and tricep accessories must use different movement patterns from each other. Max 2 pressing movements per upper day total.';
   } else {
     // LOWER PULL PUSH — only used for 6 days no conditioning
-    structureGuide = 'LOWER/PULL/PUSH STRUCTURE (6 days) — follow this composition exactly for each day:\n\n- Lower A (Hip-dominant): Primary = 1 hip hinge (deadlift, RDL, Romanian deadlift). Supplemental = 1 quad movement (leg press, hack squat, or lunge). Accessories = hamstring isolation, glute isolation, 1 ab movement, calves. NO sled, carries, or loaded locomotion on the same day as lunges.\n\n- Lower B (Quad-dominant): Primary = 1 squat variation (back squat, front squat, goblet squat). Supplemental = 1 hip hinge variation (lighter — RDL, good morning, or hip thrust). Accessories = leg extension or step-up, hamstring curl, calves, abs.\n\n- Pull A (Horizontal emphasis): Primary = 1 horizontal row (barbell row, cable row, chest-supported row, DB row). Supplemental = 1 vertical pull (lat pulldown or pull-up). Accessories = rear delt work, 1 trap movement, 2 bicep exercises (use DIFFERENT movement patterns — e.g. supinated curl + hammer curl, NOT two overhead or two cable curls).\n\n- Pull B (Vertical emphasis): Primary = 1 vertical pull (pull-ups or lat pulldown). Supplemental = 1 horizontal row variation (different from Pull A). Accessories = cable pullover or straight-arm pulldown, face pulls or rear delt fly, 2 bicep exercises (different patterns from each other and from Pull A accessories).\n\n- Push A (Horizontal emphasis): Primary = 1 horizontal press (bench press, DB press, or incline press). Supplemental = 1 additional chest movement at different angle (incline or decline). Accessories = lateral raises, 2 tricep exercises (use DIFFERENT movement patterns — e.g. pushdown + overhead extension is fine; two pushdowns or two overhead variations is NOT). Do NOT fill Push A with overhead or vertical pressing movements.\n\n- Push B (Vertical emphasis): Primary = 1 vertical press (overhead press or dumbbell shoulder press). Supplemental = 1 chest or horizontal push movement (flat DB press, cable press, or push-up variation — NOT another overhead press). Accessories = lateral raises, rear delt work, 2 tricep exercises (different patterns). Push B is NOT an all-shoulder day — it must include chest/horizontal push work in the supplemental slot.\n\nOrder: Lower A, Pull A, Push A, Lower B, Pull B, Push B.';
+    structureGuide = 'LOWER/PULL/PUSH STRUCTURE (6 days) — follow this composition exactly for each day:\n\n- Lower A (Hip-dominant): Primary = 1 hip hinge (deadlift, RDL, Romanian deadlift). Supplemental = 1 UNILATERAL leg movement — REQUIRED, not optional: Bulgarian split squat, single-leg RDL, step-up, slider lunge, pistol squat, or skater squat. Accessories = hamstring isolation, glute isolation, 1 ab movement, calves. NO sled, carries, or bilateral lunge on the same day as a unilateral movement.\n\n- Lower B (Quad-dominant): Primary = 1 squat variation (back squat, front squat, goblet squat). Supplemental = 1 hip hinge variation (lighter — RDL, good morning, or hip thrust). Accessories = 1 UNILATERAL leg movement (different type from Lower A — if Lower A has Bulgarian split squat, Lower B uses step-up or single-leg press), leg extension, hamstring curl, calves, abs.\n\n- Pull A (Horizontal emphasis): Primary = 1 horizontal row (barbell row, cable row, chest-supported row, DB row). Supplemental = 1 vertical pull (lat pulldown or pull-up). Accessories = rear delt work, 1 trap movement, 2 bicep exercises (use DIFFERENT movement patterns — e.g. supinated curl + hammer curl, NOT two overhead or two cable curls).\n\n- Pull B (Vertical emphasis): Primary = 1 vertical pull (pull-ups or lat pulldown). Supplemental = 1 horizontal row variation (different from Pull A). Accessories = cable pullover or straight-arm pulldown, face pulls or rear delt fly, 2 bicep exercises (different patterns from each other and from Pull A accessories).\n\n- Push A (Horizontal emphasis): Primary = 1 horizontal press (bench press, DB press, or incline press). Supplemental = 1 additional chest movement at different angle (incline or decline). Accessories = lateral raises, 2 tricep exercises (use DIFFERENT movement patterns — e.g. pushdown + overhead extension is fine; two pushdowns or two overhead variations is NOT). Do NOT fill Push A with overhead or vertical pressing movements.\n\n- Push B (Vertical emphasis): Primary = 1 vertical press (overhead press or dumbbell shoulder press). Supplemental = 1 chest or horizontal push movement (flat DB press, cable press, or push-up variation — NOT another overhead press). Accessories = lateral raises, rear delt work, 2 tricep exercises (different patterns). Push B is NOT an all-shoulder day — it must include chest/horizontal push work in the supplemental slot.\n\nOrder: Lower A, Pull A, Push A, Lower B, Pull B, Push B.';
   }
 
   var injuryNote = intake.injuries_limitations ? '\nInjuries/limitations: ' + intake.injuries_limitations + ' — avoid these movements.' : '';
@@ -792,23 +881,28 @@ export default async function handler(req, res) {
       return primaries;
     }
 
-    var block1Prompt = buildTrainingPrompt(intake, profile, days, splitType, splitDesc, isAnyConditioning, previousPrimaries, 1, []);
+    var block1Prompt = buildTrainingPrompt(intake, profile, days, splitType, splitDesc, isAnyConditioning, previousPrimaries, 1, [], [], [], []);
     var block1Result = await callClaude(block1Prompt);
     var block1Data = cleanAndParse(block1Result);
     var block1Primaries = extractPrimaries(block1Data);
     var block1AllExercises = extractAllExercises(block1Data);
+    var block1Patterns = getPatternsFromBlock(block1Data);
+    var block1PrimaryPatterns = getPrimaryPatternsFromBlock(block1Data);
 
     await sleep(1000);
 
-    var block2Prompt = buildTrainingPrompt(intake, profile, days, splitType, splitDesc, isAnyConditioning, null, 2, block1Primaries, block1AllExercises);
+    var block2Prompt = buildTrainingPrompt(intake, profile, days, splitType, splitDesc, isAnyConditioning, null, 2, block1Primaries, block1AllExercises, block1Patterns, block1PrimaryPatterns);
     var block2Result = await callClaude(block2Prompt);
     var block2Data = cleanAndParse(block2Result);
     var block2Primaries = block1Primaries.concat(extractPrimaries(block2Data));
     var block2AllExercises = block1AllExercises.concat(extractAllExercises(block2Data));
+    var block2Patterns = getPatternsFromBlock(block2Data);
+    var block2PrimaryPatterns = block1PrimaryPatterns.concat(getPrimaryPatternsFromBlock(block2Data)).filter(function(v, i, a) { return a.indexOf(v) === i; });
+    var block2AllPatterns = block1Patterns.concat(block2Patterns).filter(function(v, i, a) { return a.indexOf(v) === i; });
 
     await sleep(1000);
 
-    var block3Prompt = buildTrainingPrompt(intake, profile, days, splitType, splitDesc, isAnyConditioning, null, 3, block2Primaries, block2AllExercises);
+    var block3Prompt = buildTrainingPrompt(intake, profile, days, splitType, splitDesc, isAnyConditioning, null, 3, block2Primaries, block2AllExercises, block2AllPatterns, block2PrimaryPatterns);
     var block3Result = await callClaude(block3Prompt);
     var block3Data = cleanAndParse(block3Result);
 
