@@ -61,40 +61,51 @@ async function getLogs(req, res) {
 
 async function getProgression(userId, exerciseName, weightLbs, reps, rir, notes, prescribedReps, supabase) {
   try {
-    var hist = await supabase
-      .from("workout_logs")
-      .select("weight_lbs,reps,rir,notes")
-      .eq("user_id", userId)
-      .eq("exercise_name", exerciseName)
-      .order("logged_at", { ascending: false })
-      .limit(4);
-    var history = hist.data ? hist.data.slice(1) : [];
-    var prompt = "You are a strength coach. Give a single one-sentence progression suggestion for next week.\n";
-    prompt += "Exercise: " + exerciseName + "\n";
-    prompt += "This session: " + (weightLbs ? weightLbs + " lbs" : "bodyweight") + " x " + reps + " reps @ " + rir + " RIR\n";
-    if (notes) prompt += "Notes: " + notes + "\n";
+    // Parse recorded values
+    var weight = parseFloat(weightLbs) || 0;
+    var recordedReps = parseInt(reps) || 0;
+    var recordedRir = parseInt(rir);
+
+    // Parse prescribed rep range e.g. "6-8", "4-6", "12-15"
+    var prescribedMin = null;
+    var prescribedMax = null;
     if (prescribedReps) {
-      prompt += "PRESCRIBED REP RANGE: " + prescribedReps + ". Your suggestion MUST stay within this range. Do not suggest more reps than the upper end of this range. Do not suggest fewer reps than the lower end. Only suggest adding weight if the member is at or above the top of the range with low RIR.\n";
+      var parts = String(prescribedReps).match(/(\d+)\s*[-–]\s*(\d+)/);
+      if (parts) {
+        prescribedMin = parseInt(parts[1]);
+        prescribedMax = parseInt(parts[2]);
+      } else {
+        var single = parseInt(prescribedReps);
+        if (!isNaN(single)) { prescribedMin = single; prescribedMax = single; }
+      }
     }
-    history.forEach(function(h) {
-      prompt += "Previous: " + (h.weight_lbs || "BW") + " x " + h.reps + " @ " + h.rir + "\n";
-    });
-    prompt += "Suggestion (one sentence, stay within prescribed rep range):";
-    var resp = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": process.env.ANTHROPIC_API_KEY,
-        "anthropic-version": "2023-06-01"
-      },
-      body: JSON.stringify({
-        model: "claude-haiku-4-5-20251001",
-        max_tokens: 100,
-        messages: [{ role: "user", content: prompt }]
-      })
-    });
-    var data = await resp.json();
-    return data.content && data.content[0] ? data.content[0].text : null;
+
+    // Determine progression based on where reps land in the range
+    if (prescribedMin !== null && prescribedMax !== null && weight > 0) {
+      var isNaN_rir = isNaN(recordedRir);
+      var lowRir = !isNaN_rir && recordedRir <= 2;
+
+      if (recordedReps >= prescribedMax) {
+        // At or above top of range — add weight, drop to bottom
+        var increment = weight >= 200 ? 10 : weight >= 100 ? 5 : 2.5;
+        return 'Hit the top of your range — add ' + increment + ' lbs next week and aim for ' + prescribedMin + '-' + (prescribedMin + 1) + ' reps.';
+      } else if (recordedReps <= prescribedMin) {
+        // At bottom of range — add a rep, keep weight
+        return 'Stay at ' + (weight > 0 ? weight + ' lbs' : 'same weight') + ' and add 1-2 reps to work up toward ' + prescribedMax + '.';
+      } else {
+        // Mid-range — add a rep
+        return 'Keep the weight and add 1 rep — target ' + (recordedReps + 1) + ' reps next session.';
+      }
+    }
+
+    // Bodyweight or no prescribed range — simple suggestion
+    if (!weight || weight === 0) {
+      return 'Add 1-2 reps or add a small load (weighted vest or plate) to progress this movement.';
+    }
+
+    // Fallback: at least suggest adding reps or weight
+    return 'Aim for 1 more rep than today, or add 5 lbs if you completed all reps cleanly.';
+
   } catch (e) {
     return null;
   }
