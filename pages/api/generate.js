@@ -24,11 +24,18 @@ function buildTrainingPrompt(intake, profile, days, splitType, splitDesc, hasCar
   if (intake.equipment_to_avoid && intake.equipment_to_avoid.length > 0) {
     equipmentExclusions = ' EQUIPMENT NOT AVAILABLE (do not program these even in a full gym): ' + intake.equipment_to_avoid.join(', ') + '.';
   }
-  if (equipment === 'full_gym' && intake.equipment_detail && intake.equipment_detail.length > 0) {
+  if (equipment === 'full_gym') {
     var specialtyItems = ['Trap Bar', 'Safety Squat Bar'];
-    var missing = specialtyItems.filter(function(item) {
-      return intake.equipment_detail.indexOf(item) === -1;
-    });
+    var missing;
+    if (intake.equipment_detail && intake.equipment_detail.length > 0) {
+      // User filled out equipment detail — exclude anything not checked
+      missing = specialtyItems.filter(function(item) {
+        return intake.equipment_detail.indexOf(item) === -1;
+      });
+    } else {
+      // No equipment detail filled out — exclude both specialty bars by default
+      missing = specialtyItems;
+    }
     if (missing.length > 0) {
       equipmentExclusions += ' Member does NOT have access to: ' + missing.join(', ') + '. Do not program exercises requiring these specific bars.';
     }
@@ -87,12 +94,12 @@ function buildTrainingPrompt(intake, profile, days, splitType, splitDesc, hasCar
   var blockContextNote = '';
   if (blockNum > 1 && previousBlockPrimaries && previousBlockPrimaries.length > 0) {
     var blockLabel = blockNum === 2 ? 'Block 1' : 'Blocks 1 and 2';
-    blockContextNote = '\n\nEXERCISE ROTATION (BLOCK ' + blockNum + '): This block must use different exercises from ' + blockLabel + ' to provide fresh stimulus.'
-      + '\nPrimary exercises (first exercise per day) MUST be different — do NOT repeat any of these as a primary: ' + previousBlockPrimaries.join(', ') + '.'
+    blockContextNote = '\n\nEXERCISE ROTATION (BLOCK ' + blockNum + '): Rotate exercises from ' + blockLabel + ' to provide fresh stimulus and variety. Be creative — use the full exercise library.'
+      + '\nPrimary exercises (first per day) MUST be different from these: ' + previousBlockPrimaries.join(', ') + '.'
       + (allPreviousExercises && allPreviousExercises.length > 0
-        ? '\nAll previously used exercises (avoid repeating where possible — some overlap on isolations is acceptable if necessary): ' + allPreviousExercises.join(', ') + '.'
+        ? '\nFor supplemental and accessory slots, actively seek variation — use different angles, implements, and movement patterns from: ' + allPreviousExercises.join(', ') + '. Some isolation overlap is acceptable if truly necessary, but push for variety.'
         : '')
-      + '\nUse the full exercise library to find fresh variations. If an exercise must repeat, it should be an isolation accessory, never a primary or supplemental compound.';
+      + '\nIMPORTANT: Avoiding previous exercises does NOT mean defaulting to basic movements. Use specialty variations, less common exercises, and different loading patterns. A block that avoids previous exercises but only programs basic barbell movements is a failure of creativity. Use exercises like pause variations, tempo work, single-leg/single-arm variations, cables, machines, and specialty bar options where available.';
   }
 
   // Speed/power note for athletic performance
@@ -145,7 +152,8 @@ function buildTrainingPrompt(intake, profile, days, splitType, splitDesc, hasCar
     + '\n16. CROSS-DAY EXERCISE UNIQUENESS: No exercise name may appear on more than one day within the same block. If lateral raises appear on Push A, they cannot appear on Push B — use a different shoulder isolation (cable lateral raise, front raise, or upright row). If barbell bench appears on Push A, it cannot appear on Push B — use a different horizontal press (incline DB, cable press, etc.). This applies to all exercises across all days in the block.'
     + '\n17. CROSS-DAY MOVEMENT PATTERN VARIETY: Even when exercise names differ, avoid programming the same movement pattern on two push days or two pull days. For example: DB lateral raise on Push A and cable lateral raise on Push B is a violation — both are lateral raise patterns. Instead Push B should use a different shoulder movement entirely (front raise, upright row, or face pull). Vary the movement pattern, not just the implement.'
     + '\n18. PRIMARY EXERCISE QUALITY AT LOW REP RANGES: When programming primary compound exercises (first exercise per day) at 5 reps or fewer, only use barbell-based compound movements or heavy machine equivalents. Goblet squats, good mornings, dumbbell bench press, dumbbell shoulder press, and similar dumbbell/bodyweight movements are NOT appropriate primaries at low rep ranges — they cannot be loaded heavily enough. Use barbell or trap bar variations instead. Examples of appropriate primaries by pattern:\n   - Hip hinge: Deadlift, Sumo Deadlift, Trap Bar Deadlift, Deficit Deadlift, Rack Pull, Snatch Grip Deadlift\n   - Squat: Back Squat, Front Squat, Box Squat, Pause Squat, Hatfield Squat, High Bar Squat, Low Bar Squat, Pin Squat\n   - Horizontal press: Barbell Bench Press, Incline Bench Press, Close-Grip Bench Press, Pin Press, Board Press, Pause Bench Press\n   - Vertical press: Barbell Overhead Press, Seated Barbell Press, Push Press, Pin Overhead Press\n   - Row: Barbell Row, Chest-Supported Barbell Row, Pendlay Row\nThis rule applies to blocks 2 and 3 where rep ranges drop into strength territory. At 6+ reps, dumbbell and machine primaries are acceptable.'
-    + '\n19. ACCESSORY CATEGORY DISTRIBUTION ACROSS SAME-TYPE DAYS: When a split has two days of the same type (Push A + Push B, Pull A + Pull B, Lower A + Lower B, Upper A + Upper B), their accessory slots must cover DIFFERENT muscle categories from each other — not the same category twice with a different implement.\n   PUSH DAYS: If Push A uses a lateral raise (shoulder isolation), Push B must use a different shoulder category — front raise, upright row, or Cuban press — NOT another lateral raise variation. If Push A uses a cable or machine fly (chest isolation), Push B must use a different chest isolation — dumbbell fly, incline fly, or pec deck — NOT another cable or machine fly. Push A and Push B together should spread across: chest isolation, shoulder isolation, and tricep isolation without doubling up on any category.\n   PULL DAYS: If Pull A uses a supinated curl (bicep), Pull B must use a different bicep pattern — hammer curl, incline curl, or cable curl. If Pull A uses face pulls (rear delt), Pull B must use a different rear delt movement — rear delt fly, band pull-apart, or reverse pec deck.\n   LOWER DAYS: If Lower A ends with cable crunches (core flexion), Lower B must use a different core category — planks, dead bugs, pallof press, or leg raises.\n   The principle: treat each pair of same-type days as a complete weekly menu for that muscle group\'s accessories. Each day covers different angles so the full week hits the muscle from multiple directions.';
+    + '\n19. ACCESSORY CATEGORY DISTRIBUTION ACROSS SAME-TYPE DAYS: When a split has two days of the same type (Push A + Push B, Pull A + Pull B, Lower A + Lower B, Upper A + Upper B), their accessory slots must cover DIFFERENT muscle categories from each other — not the same category twice with a different implement.\n   PUSH DAYS: If Push A uses a lateral raise (shoulder isolation), Push B must use a different shoulder category — front raise, upright row, or Cuban press — NOT another lateral raise variation. If Push A uses a cable or machine fly (chest isolation), Push B must use a different chest isolation — dumbbell fly, incline fly, or pec deck — NOT another cable or machine fly. Push A and Push B together should spread across: chest isolation, shoulder isolation, and tricep isolation without doubling up on any category.\n   PULL DAYS: If Pull A uses a supinated curl (bicep), Pull B must use a different bicep pattern — hammer curl, incline curl, or cable curl. If Pull A uses face pulls (rear delt), Pull B must use a different rear delt movement — rear delt fly, band pull-apart, or reverse pec deck.\n   LOWER DAYS: If Lower A ends with cable crunches (core flexion), Lower B must use a different core category — planks, dead bugs, pallof press, or leg raises.\n   The principle: treat each pair of same-type days as a complete weekly menu for that muscle group\'s accessories. Each day covers different angles so the full week hits the muscle from multiple directions.'
+    + '\n20. SINGLE-LEG AND SINGLE-ARM VARIETY: Every lower body block must include at least one single-leg movement across the week — Bulgarian split squat, single-leg RDL, step-ups, pistol squat, skater squat, slider lunge, or similar. Every upper body block should include at least one single-arm movement across the week — single-arm row, single-arm press, single-arm cable work, or similar. These are not optional accessories — they are required for balance, injury prevention, and movement quality. Spread them across days rather than stacking them. A program with zero unilateral movements in a full block is a violation of this rule.';
 
   var previousPrimariesNote = '';
   if (previousPrimaries && previousPrimaries.length > 0) {
